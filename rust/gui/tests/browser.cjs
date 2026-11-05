@@ -25,7 +25,8 @@ const { pathToFileURL } = require('node:url');
         window.calls.push({ command, args });
         if (window.mode === 'pending') return new Promise(resolve => { window.finish = resolve; });
         if (window.mode === 'error') throw 'Access denied (code 5). Check account permissions.';
-        return { server: args.server, scopes: window.mode === 'empty' ? [] : window.fixture };
+        return { server: args.server, scopes: window.mode === 'empty' ? [] : window.fixture,
+          notice: window.mode === 'recovery' ? 'Scope IDs recovered; native worker exited with 0xC0000005. Diagnostic log: ipsherpa.log' : null };
       } } };
     });
     await page.goto(pathToFileURL(path.join(__dirname, '../ui/index.html')).href);
@@ -65,6 +66,12 @@ const { pathToFileURL } = require('node:url');
     assert.equal(await page.locator('#scope-count').textContent(), '2');
     assert.equal(await page.locator('#error').isHidden(), true);
 
+    await page.evaluate(() => window.mode = 'recovery');
+    await page.locator('#refresh').click();
+    await page.locator('#error').waitFor({ state: 'visible' });
+    assert.match(await page.locator('#error').textContent(), /Scope IDs recovered/);
+    assert.equal(await page.locator('#table-wrapper').isVisible(), true);
+    assert.equal(await page.locator('#refresh').isEnabled(), true);
     await page.evaluate(() => window.mode = 'pending');
     await page.locator('#refresh').click();
     assert.equal(await page.locator('#server').isDisabled(), true);

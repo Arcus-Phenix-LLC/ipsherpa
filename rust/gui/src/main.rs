@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod diagnostics;
+mod worker;
+
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -15,14 +18,16 @@ impl Drop for QueryGuard {
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ScopeList {
     server: String,
     scopes: Vec<ScopeRow>,
+    #[serde(default)]
+    notice: Option<String>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ScopeRow {
     scope_id: String,
@@ -32,7 +37,7 @@ struct ScopeRow {
     warnings: Vec<String>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 struct RangeRow {
     start: String,
     end: String,
@@ -76,17 +81,25 @@ async fn list_scopes(
     let guard = QueryGuard(Arc::clone(&state.0));
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
-        let scopes = ipsherpa::list_scope_details(&server)?
-            .into_iter()
-            .map(ScopeRow::from)
-            .collect();
-        Ok(ScopeList { server, scopes })
+        worker::query(&server)
     })
     .await
     .map_err(|error| format!("The scope query worker failed: {error}"))?
 }
 
 fn main() {
+    diagnostics::init();
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "--dhcp-worker") {
+        let code = match args.as_slice() {
+            [_, mode, server] => worker::child_main(mode, server),
+            _ => {
+                diagnostics::log("Invalid DHCP worker arguments");
+                2
+            }
+        };
+        std::process::exit(code);
+    }
     tauri::Builder::default()
         .manage(QueryState::default())
         .invoke_handler(tauri::generate_handler![list_scopes])

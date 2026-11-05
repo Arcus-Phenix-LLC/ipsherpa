@@ -131,11 +131,17 @@ mod native {
             // allocated strings; the guard is its sole owner.
             unsafe {
                 if let Some(info) = self.0.as_ref() {
+                    eprintln!("DhcpGetSubnetInfo cleanup: name");
                     free(info.name);
+                    eprintln!("DhcpGetSubnetInfo cleanup: comment");
                     free(info.comment);
+                    eprintln!("DhcpGetSubnetInfo cleanup: NetBIOS name");
                     free(info.host.netbios_name);
+                    eprintln!("DhcpGetSubnetInfo cleanup: hostname");
                     free(info.host.host_name);
+                    eprintln!("DhcpGetSubnetInfo cleanup: outer structure");
                     free(self.0);
+                    eprintln!("DhcpGetSubnetInfo cleanup: complete");
                 }
             }
         }
@@ -149,13 +155,18 @@ mod native {
             // called with DhcpIpRanges, never reservations or host records.
             unsafe {
                 if let Some(page) = self.0.as_ref() {
+                    eprintln!("DhcpEnumSubnetElements cleanup: {} elements", page.count);
                     if !page.elements.is_null() {
                         for index in 0..page.count as usize {
+                            eprintln!("DhcpEnumSubnetElements cleanup: range {index}");
                             free((*page.elements.add(index)).data);
                         }
+                        eprintln!("DhcpEnumSubnetElements cleanup: element array");
                         free(page.elements);
                     }
+                    eprintln!("DhcpEnumSubnetElements cleanup: outer structure");
                     free(self.0);
+                    eprintln!("DhcpEnumSubnetElements cleanup: complete");
                 }
             }
         }
@@ -185,8 +196,10 @@ mod native {
 
     fn info(server: &[u16], id: Ipv4Addr) -> Result<(String, u32), String> {
         let mut raw = ptr::null_mut();
+        eprintln!("DhcpGetSubnetInfo {id}: call begin");
         // SAFETY: server is terminated UTF-16 and raw is a valid out pointer.
         let code = unsafe { DhcpGetSubnetInfo(server.as_ptr(), u32::from(id), &mut raw) };
+        eprintln!("DhcpGetSubnetInfo {id}: returned {code}");
         let guard = InfoGuard(raw);
         if code != 0 {
             return Err(api_error("DhcpGetSubnetInfo", id, code));
@@ -196,7 +209,9 @@ mod native {
         if info.address != u32::from(id) {
             return Err("DHCP returned a different scope ID".into());
         }
-        Ok((unsafe { copy_name(info.name) }?, info.state))
+        let name = unsafe { copy_name(info.name) }?;
+        eprintln!("DhcpGetSubnetInfo {id}: fields copied");
+        Ok((name, info.state))
     }
 
     fn ranges(server: &[u16], id: Ipv4Addr) -> Result<Vec<AddressRange>, String> {
@@ -206,6 +221,7 @@ mod native {
             let previous = resume;
             let mut raw = ptr::null_mut();
             let (mut read, mut total) = (0, 0);
+            eprintln!("DhcpEnumSubnetElements {id}: call begin");
             // SAFETY: all out parameters are initialized. kind=0 requests
             // DhcpIpRanges, not exclusions, leases or inferred subnet bounds.
             let code = unsafe {
@@ -220,6 +236,7 @@ mod native {
                     &mut total,
                 )
             };
+            eprintln!("DhcpEnumSubnetElements {id}: returned {code}, read={read}");
             let page = RangeGuard(raw);
             match code {
                 259 => break,

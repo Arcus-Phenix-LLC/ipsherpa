@@ -82,6 +82,10 @@ async function queryScopes(server) {
       }
     });
     rows.replaceChildren(fragment);
+    if (result.notice) {
+      errorBox.textContent = result.notice;
+      errorBox.hidden = false;
+    }
     count.textContent = String(result.scopes.length);
     context.textContent = `${result.server} · Updated ${new Date().toLocaleTimeString()}`;
     status.dataset.state = "success";

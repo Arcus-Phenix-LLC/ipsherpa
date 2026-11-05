@@ -32,6 +32,10 @@ actual administration workstations before choosing runtime packaging.
   are stored. DHCP server permissions and RPC connectivity are still required.
 - Runs native queries on a blocking worker, keeping the UI responsive. One query
   may run at a time, enforced by the backend as well as disabled controls.
+- Version 0.1.1 runs all native DHCP queries in a separate, hidden child process.
+  If that process fails, the GUI retries scope IDs in another child and displays
+  a recovery warning. If both queries fail, it shows an error rather than an
+  empty result. Native access violations cannot be caught as ordinary Rust errors.
 - Shows loading, successful results, an empty response, and API errors including
   their numeric Windows code. Previous results are cleared before a new query.
 - Names and state come from `DhcpGetSubnetInfo`; configured ranges come from
@@ -45,7 +49,8 @@ actual administration workstations before choosing runtime packaging.
   reliable cancellation mechanism remains future work.
 - The frontend is bundled locally. Its single permitted application command is
   `list_scopes`, scoped to the main window. There are no shell/file/network
-  plugins, remote web content, or DHCP mutation commands.
+  plugins, remote web content, or DHCP mutation commands. The Rust backend starts
+  only its own executable in the internal `--dhcp-worker` mode, without a shell.
 - This GUI is Windows-focused. Tauri's cross-platform support does not make the
   Windows DHCP backend portable.
 
@@ -82,6 +87,29 @@ partial errors, safe text rendering, loading controls, refresh targeting,
 invalid input and a narrow window. They do not establish native API parity.
 
 Local validation passed the Windows x64 release build, Clippy, formatting, and
-seven shared-library/CLI tests. The initial GUI's startup and scope query were
+seven shared-library/CLI tests plus four GUI worker recovery tests. The initial GUI's startup and scope query were
 confirmed by the user on an RSAT-equipped machine. The new name/range/state
 queries still require lab comparison; a test success is not claimed for them.
+
+## Diagnosing the scope-detail crash
+
+The detail build was reported to close after Connect. Its exact native failure
+has not yet been reproduced or identified. The recovery build contains that
+failure in a subprocess and captures its exit code and API/cleanup stages;
+this is crash containment and diagnostics, not a verified native-memory fix.
+
+Logs are local to `%LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log`. They record the
+target server, scope IDs, API stages, failures, and Rust panics; no passwords or
+credentials. An optional `IPSHERPA_LOG_DIR` environment variable overrides the
+directory for testing. Logs are appended across runs.
+
+After retrying the failing query, inspect the last entries:
+
+```powershell
+Get-Content "$env:LOCALAPPDATA\IPSherpa\logs\ipsherpa.log" -Tail 60
+```
+
+Local worker tests cover native error exit codes, malformed replies, successful
+details, scope-ID recovery and failure of both workers. A packaged headless
+worker smoke test validated structured stdout and diagnostic file creation.
+Live recovery against the affected DHCP server remains to be checked.
