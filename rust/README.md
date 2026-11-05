@@ -4,6 +4,10 @@ Read-only proof of concept on `rust-transition`. Lists IPv4 scope IDs using
 `DhcpEnumSubnets` directly; no PowerShell invocation or DHCP mutation functions.
 Uses the current Windows process identity, with no stored credentials.
 
+The [Tauri GUI](gui/README.md) reuses the same native API through `src/lib.rs`.
+It adds a server field, Connect/Refresh, and a scope ID table. The CLI remains
+available independently and requires no Tauri dependencies.
+
 ## Build and run
 
 From this directory, use a Rust MSVC toolchain with Visual Studio C++ Build Tools

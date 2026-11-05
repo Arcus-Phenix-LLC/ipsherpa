@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Allow the bundled scope browser to run its single read-only query.",
+  "windows": ["main"],
+  "permissions": ["allow-list-scopes"]
+}
