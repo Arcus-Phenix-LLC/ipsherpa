@@ -1,0 +1,50 @@
+# IPSherpa Rust experiment
+
+Read-only proof of concept on `rust-transition`. Lists IPv4 scope IDs using
+`DhcpEnumSubnets` directly; no PowerShell invocation or DHCP mutation functions.
+Uses the current Windows process identity, with no stored credentials.
+
+## Build and run
+
+From this directory, use a Rust MSVC toolchain with Visual Studio C++ Build Tools
+and the Windows SDK (including the DHCP import library):
+
+```powershell
+cargo build --release --offline
+.\target\release\ipsherpa.exe --help
+.\target\release\ipsherpa.exe scopes --server DHCP01
+```
+
+The runtime needs the Windows `Dhcpsapi.dll` component, permission to read the
+target DHCP server, and RPC connectivity. This prototype links that DLL at load
+time; a missing DLL may prevent even `--help` from starting. Do not copy Windows
+DLLs from another machine to work around deployment requirements.
+
+Microsoft lists no supported client OS for this API. Windows workstation/RSAT
+deployment remains experimental and must be verified separately. Start on a
+Windows Server lab admin host. This code does not implement an RPC timeout or
+alternate credentials; interrupt a stalled invocation with Ctrl+C.
+
+## Validation
+
+```powershell
+cargo fmt --check
+cargo test --offline
+cargo clippy --offline -- -D warnings
+```
+
+Before accepting native integration, run against a lab DHCP server and compare
+the returned scope IDs with `Get-DhcpServerv4Scope -ComputerName DHCP01`.
+Check an empty server, multiple scopes, denied access, and unreachable targets.
+Record OS, installed DHCP tools, identity permissions, and results. Unit tests
+cover CLI input and address conversion; they do not establish live API parity.
+
+## API references
+
+- https://learn.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcpenumsubnets
+- https://learn.microsoft.com/en-us/windows/win32/api/dhcpsapi/ns-dhcpsapi-dhcp_ip_array
+- https://learn.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcprpcfreememory
+
+The FFI boundary uses C layout and the Windows system calling convention.
+Returned pages and their element arrays are released with DhcpRpcFreeMemory.
+Only scope IDs are retrieved; names, leases, reservations and writes are future work.

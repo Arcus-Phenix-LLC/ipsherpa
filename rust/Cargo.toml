@@ -1,0 +1,8 @@
+[package]
+name = "ipsherpa"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Read-only Windows DHCP scope enumeration experiment"
+
+[dependencies]
