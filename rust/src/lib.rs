@@ -1,5 +1,8 @@
 use std::net::Ipv4Addr;
 
+mod details;
+pub use details::{list_scope_details, AddressRange, ScopeDetails};
+
 fn scope_address(value: u32) -> Ipv4Addr {
     // DHCP_IP_ADDRESS is a host-order DWORD, not a network-order byte buffer.
     Ipv4Addr::from(value)

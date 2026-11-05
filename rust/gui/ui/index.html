@@ -16,7 +16,7 @@
     <main>
       <p class="eyebrow">MICROSOFT DHCP / SCOPE BROWSER</p>
       <h1>A clear view of your IP space.</h1>
-      <p class="intro">Connect to a DHCP server to browse its IPv4 scope IDs.</p>
+      <p class="intro">Browse IPv4 scopes, configured address ranges, and current state.</p>
 
       <section class="connection card" aria-labelledby="connection-title">
         <div class="section-heading"><h2 id="connection-title">Server connection</h2><span class="tag">Windows identity</span></div>
@@ -40,7 +40,7 @@
         <p id="slow-query" class="hint slow-query" hidden>The server is taking longer to respond. You can keep using the window; the query will finish when Windows RPC returns.</p>
         <div id="empty" class="empty"><span class="empty-symbol" aria-hidden="true">⌘</span><h3>Your scopes will appear here</h3><p>Enter a server above, then select Connect.</p></div>
         <div id="table-wrapper" class="table-wrapper" hidden>
-          <table><caption class="sr-only">IPv4 scope IDs returned by the selected DHCP server</caption><thead><tr><th scope="col">#</th><th scope="col">Scope ID</th></tr></thead><tbody id="scope-rows"></tbody></table>
+          <table><caption class="sr-only">IPv4 scopes and configured ranges returned by the selected DHCP server</caption><thead><tr><th scope="col">Scope ID</th><th scope="col">Name</th><th scope="col">Configured ranges</th><th scope="col">State</th></tr></thead><tbody id="scope-rows"></tbody></table>
         </div>
       </section>
       <footer><span>Native Windows DHCP API</span><span>Scope discovery only · No server changes</span></footer>

@@ -59,21 +59,35 @@ async function queryScopes(server) {
     connectedServer = result.server;
     serverInput.value = result.server;
     const fragment = document.createDocumentFragment();
-    result.scopeIds.forEach((scopeId, index) => {
+    result.scopes.forEach((scope) => {
       const row = document.createElement("tr");
-      for (const value of [String(index + 1), scopeId]) {
+      const ranges = scope.ranges === null ? "Unavailable" : scope.ranges.length
+        ? scope.ranges.map((range) => `${range.start} – ${range.end}`).join("\n")
+        : "No ranges configured";
+      const values = [scope.scopeId, scope.name === null ? "Unavailable" : scope.name || "(Unnamed)", ranges, scope.state ?? "Unavailable"];
+      for (const value of values) {
         const cell = document.createElement("td");
         cell.textContent = value;
         row.append(cell);
       }
       fragment.append(row);
+      if (scope.warnings.length) {
+        const warningRow = document.createElement("tr");
+        warningRow.className = "scope-warning";
+        const cell = document.createElement("td");
+        cell.colSpan = 4;
+        cell.textContent = `${scope.scopeId}: ${scope.warnings.join("; ")}`;
+        warningRow.append(cell);
+        fragment.append(warningRow);
+      }
     });
     rows.replaceChildren(fragment);
-    count.textContent = String(result.scopeIds.length);
+    count.textContent = String(result.scopes.length);
     context.textContent = `${result.server} · Updated ${new Date().toLocaleTimeString()}`;
     status.dataset.state = "success";
-    status.textContent = `Query complete · ${result.scopeIds.length} scope${result.scopeIds.length === 1 ? "" : "s"} returned`;
-    if (result.scopeIds.length) {
+    const warnings = result.scopes.filter((scope) => scope.warnings.length).length;
+    status.textContent = `Query complete · ${result.scopes.length} scope${result.scopes.length === 1 ? "" : "s"} returned${warnings ? ` · Details unavailable for ${warnings} scope${warnings === 1 ? "" : "s"}` : ""}`;
+    if (result.scopes.length) {
       empty.hidden = true;
       table.hidden = false;
     } else {

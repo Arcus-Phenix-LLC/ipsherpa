@@ -5,7 +5,7 @@ Read-only proof of concept on `rust-transition`. Lists IPv4 scope IDs using
 Uses the current Windows process identity, with no stored credentials.
 
 The [Tauri GUI](gui/README.md) reuses the same native API through `src/lib.rs`.
-It adds a server field, Connect/Refresh, and a scope ID table. The CLI remains
+It adds a server field, Connect/Refresh, and a scope detail table. The CLI remains
 available independently and requires no Tauri dependencies.
 
 ## Build and run
@@ -51,4 +51,7 @@ cover CLI input and address conversion; they do not establish live API parity.
 
 The FFI boundary uses C layout and the Windows system calling convention.
 Returned pages and their element arrays are released with DhcpRpcFreeMemory.
-Only scope IDs are retrieved; names, leases, reservations and writes are future work.
+The CLI lists scope IDs. The GUI additionally reads names, configured ranges,
+and state through `list_scope_details`. Leases, reservations and writes are
+future work. An initial GUI query was confirmed on an RSAT-equipped machine;
+the additional detail queries require a separate lab comparison.

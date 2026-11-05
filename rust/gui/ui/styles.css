@@ -42,8 +42,13 @@ h3 { margin: 0; font-size: 14px; font-weight: 600; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
 th { position: sticky; top: 0; background: #f3f7f4; color: #59716a; font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
 th, td { padding: 12px 18px; border-bottom: 1px solid #e8eeea; }
-th:first-child, td:first-child { width: 65px; color: #73877f; }
-td:nth-child(2) { font-family: Consolas, monospace; }
+table { min-width: 740px; }
+td { vertical-align: top; }
+th:first-child, td:first-child { width: 150px; }
+td:nth-child(1), td:nth-child(3) { font-family: Consolas, monospace; }
+td:nth-child(2) { max-width: 230px; overflow-wrap: anywhere; }
+td:nth-child(3) { white-space: pre-line; min-width: 270px; }
+.scope-warning td { color: #86551c; background: #fff9ed; font: 12px/1.6 "Segoe UI", sans-serif; white-space: normal; overflow-wrap: anywhere; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: #f8faf9; }
 footer { display: flex; justify-content: space-between; gap: 12px; color: #71877e; font-size: 11px; margin-top: 19px; }

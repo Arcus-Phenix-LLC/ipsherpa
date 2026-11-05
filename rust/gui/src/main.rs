@@ -19,7 +19,43 @@ impl Drop for QueryGuard {
 #[serde(rename_all = "camelCase")]
 struct ScopeList {
     server: String,
-    scope_ids: Vec<String>,
+    scopes: Vec<ScopeRow>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScopeRow {
+    scope_id: String,
+    name: Option<String>,
+    state: Option<String>,
+    ranges: Option<Vec<RangeRow>>,
+    warnings: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct RangeRow {
+    start: String,
+    end: String,
+}
+
+impl From<ipsherpa::ScopeDetails> for ScopeRow {
+    fn from(scope: ipsherpa::ScopeDetails) -> Self {
+        Self {
+            scope_id: scope.scope_id.to_string(),
+            name: scope.name,
+            state: scope.state,
+            ranges: scope.ranges.map(|ranges| {
+                ranges
+                    .into_iter()
+                    .map(|range| RangeRow {
+                        start: range.start.to_string(),
+                        end: range.end.to_string(),
+                    })
+                    .collect()
+            }),
+            warnings: scope.warnings,
+        }
+    }
 }
 
 #[tauri::command]
@@ -40,11 +76,11 @@ async fn list_scopes(
     let guard = QueryGuard(Arc::clone(&state.0));
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
-        let scope_ids = ipsherpa::list_scopes(&server)?
+        let scopes = ipsherpa::list_scope_details(&server)?
             .into_iter()
-            .map(|id| id.to_string())
+            .map(ScopeRow::from)
             .collect();
-        Ok(ScopeList { server, scope_ids })
+        Ok(ScopeList { server, scopes })
     })
     .await
     .map_err(|error| format!("The scope query worker failed: {error}"))?
