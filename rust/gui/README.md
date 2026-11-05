@@ -36,6 +36,11 @@ actual administration workstations before choosing runtime packaging.
   If that process fails, the GUI retries scope IDs in another child and displays
   a recovery warning. If both queries fail, it shows an error rather than an
   empty result. Native access violations cannot be caught as ordinary Rust errors.
+- Version 0.1.2 gives native detail-query buffers process lifetime. It copies
+  the requested fields into owned Rust values without freeing nested native
+  pointers. The one-shot worker exits after serialization, and Windows reclaims
+  its native buffers. A single-use backend guard prevents repeated snapshots
+  inside the same process; Refresh always starts a new worker.
 - Shows loading, successful results, an empty response, and API errors including
   their numeric Windows code. Previous results are cleared before a new query.
 - Names and state come from `DhcpGetSubnetInfo`; configured ranges come from
@@ -87,16 +92,18 @@ partial errors, safe text rendering, loading controls, refresh targeting,
 invalid input and a narrow window. They do not establish native API parity.
 
 Local validation passed the Windows x64 release build, Clippy, formatting, and
-seven shared-library/CLI tests plus four GUI worker recovery tests. The initial GUI's startup and scope query were
+nine shared-library/CLI tests plus four GUI worker recovery tests. The initial GUI's startup and scope query were
 confirmed by the user on an RSAT-equipped machine. The new name/range/state
 queries still require lab comparison; a test success is not claimed for them.
 
 ## Diagnosing the scope-detail crash
 
-The detail build was reported to close after Connect. Its exact native failure
-has not yet been reproduced or identified. The recovery build contains that
-failure in a subprocess and captures its exit code and API/cleanup stages;
-this is crash containment and diagnostics, not a verified native-memory fix.
+The detail build had unsafe assumptions about independent ownership of nested
+native buffers. Version 0.1.2 removes that cleanup from detail queries entirely;
+their memory is reclaimed when the query worker exits. This avoids relying on
+undocumented nested allocation boundaries. The process isolation and scope-ID
+fallback remain available. Live server comparison is still required for a new
+build; synthetic regression fixtures do not establish native API parity.
 
 Logs are local to `%LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log`. They record the
 target server, scope IDs, API stages, failures, and Rust panics; no passwords or
@@ -112,4 +119,6 @@ Get-Content "$env:LOCALAPPDATA\IPSherpa\logs\ipsherpa.log" -Tail 60
 Local worker tests cover native error exit codes, malformed replies, successful
 details, scope-ID recovery and failure of both workers. A packaged headless
 worker smoke test validated structured stdout and diagnostic file creation.
-Live recovery against the affected DHCP server remains to be checked.
+Native buffer tests use only synthetic data, including aliased and interior
+pointers, and verify that the copied snapshot outlives its source storage.
+Runtime logs and environment-specific diagnostic data must not be committed.

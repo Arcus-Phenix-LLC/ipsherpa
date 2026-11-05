@@ -50,8 +50,10 @@ cover CLI input and address conversion; they do not establish live API parity.
 - https://learn.microsoft.com/en-us/windows/win32/api/dhcpsapi/nf-dhcpsapi-dhcprpcfreememory
 
 The FFI boundary uses C layout and the Windows system calling convention.
-Returned pages and their element arrays are released with DhcpRpcFreeMemory.
+Scope-ID pages and their element arrays are released with DhcpRpcFreeMemory.
 The CLI lists scope IDs. The GUI additionally reads names, configured ranges,
-and state through `list_scope_details`. Leases, reservations and writes are
+and state through `list_scope_details_for_worker`. This API is single-use within
+a short-lived worker; native detail buffers are reclaimed by Windows at worker
+exit. Leases, reservations and writes are
 future work. An initial GUI query was confirmed on an RSAT-equipped machine;
 the additional detail queries require a separate lab comparison.

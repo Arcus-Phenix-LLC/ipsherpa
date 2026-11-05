@@ -64,7 +64,7 @@ fn assemble(
 mod native {
     use super::{assemble, AddressRange, ScopeDetails};
     use crate::scope_address;
-    use std::{ffi::c_void, net::Ipv4Addr, ptr};
+    use std::{net::Ipv4Addr, ptr};
 
     #[repr(C)]
     struct HostInfo {
@@ -112,65 +112,12 @@ mod native {
             read: *mut u32,
             total: *mut u32,
         ) -> u32;
-        fn DhcpRpcFreeMemory(buffer: *mut c_void);
     }
 
-    unsafe fn free<T>(value: *mut T) {
-        if !value.is_null() {
-            // SAFETY: callers pass a DHCP RPC allocation, each freed once.
-            unsafe {
-                DhcpRpcFreeMemory(value.cast());
-            }
-        }
-    }
-
-    struct InfoGuard(*mut SubnetInfo);
-    impl Drop for InfoGuard {
-        fn drop(&mut self) {
-            // SAFETY: the API supplies this structure and its independently
-            // allocated strings; the guard is its sole owner.
-            unsafe {
-                if let Some(info) = self.0.as_ref() {
-                    eprintln!("DhcpGetSubnetInfo cleanup: name");
-                    free(info.name);
-                    eprintln!("DhcpGetSubnetInfo cleanup: comment");
-                    free(info.comment);
-                    eprintln!("DhcpGetSubnetInfo cleanup: NetBIOS name");
-                    free(info.host.netbios_name);
-                    eprintln!("DhcpGetSubnetInfo cleanup: hostname");
-                    free(info.host.host_name);
-                    eprintln!("DhcpGetSubnetInfo cleanup: outer structure");
-                    free(self.0);
-                    eprintln!("DhcpGetSubnetInfo cleanup: complete");
-                }
-            }
-        }
-    }
-
-    struct RangeGuard(*mut ElementArray);
-    impl Drop for RangeGuard {
-        fn drop(&mut self) {
-            // SAFETY: this is a DHCP-allocated array of pointer-valued union
-            // arms. Range arms have no further allocations. The API is only
-            // called with DhcpIpRanges, never reservations or host records.
-            unsafe {
-                if let Some(page) = self.0.as_ref() {
-                    eprintln!("DhcpEnumSubnetElements cleanup: {} elements", page.count);
-                    if !page.elements.is_null() {
-                        for index in 0..page.count as usize {
-                            eprintln!("DhcpEnumSubnetElements cleanup: range {index}");
-                            free((*page.elements.add(index)).data);
-                        }
-                        eprintln!("DhcpEnumSubnetElements cleanup: element array");
-                        free(page.elements);
-                    }
-                    eprintln!("DhcpEnumSubnetElements cleanup: outer structure");
-                    free(self.0);
-                    eprintln!("DhcpEnumSubnetElements cleanup: complete");
-                }
-            }
-        }
-    }
+    // These RPC buffers are owned by the one-shot query process. Nested pointer
+    // allocation boundaries are not inferred from their presence in a struct.
+    // No native detail buffer is individually freed; Windows reclaims the entire
+    // request arena at worker exit, after the owned Rust result is serialized.
 
     fn api_error(api: &str, id: Ipv4Addr, code: u32) -> String {
         format!(
@@ -184,7 +131,7 @@ mod native {
             return Ok(String::new());
         }
         // SAFETY: a successful DHCP response guarantees a NUL-terminated
-        // Unicode string. Stop at its terminator, copying before freeing it.
+        // Unicode string. Stop at its terminator and copy into Rust-owned storage.
         for length in 0..32768 {
             if unsafe { *value.add(length) } == 0 {
                 let units = unsafe { std::slice::from_raw_parts(value, length) };
@@ -200,12 +147,17 @@ mod native {
         // SAFETY: server is terminated UTF-16 and raw is a valid out pointer.
         let code = unsafe { DhcpGetSubnetInfo(server.as_ptr(), u32::from(id), &mut raw) };
         eprintln!("DhcpGetSubnetInfo {id}: returned {code}");
-        let guard = InfoGuard(raw);
         if code != 0 {
             return Err(api_error("DhcpGetSubnetInfo", id, code));
         }
         // SAFETY: a successful call supplies the documented C structure.
-        let info = unsafe { guard.0.as_ref() }.ok_or("DHCP returned null scope information")?;
+        unsafe { copy_info(raw, id) }
+    }
+
+    unsafe fn copy_info(raw: *const SubnetInfo, id: Ipv4Addr) -> Result<(String, u32), String> {
+        // SAFETY: caller supplies a successful response or a valid test fixture;
+        // all pointed-to storage remains alive for this copy. Nothing is freed.
+        let info = unsafe { raw.as_ref() }.ok_or("DHCP returned null scope information")?;
         if info.address != u32::from(id) {
             return Err("DHCP returned a different scope ID".into());
         }
@@ -237,7 +189,6 @@ mod native {
                 )
             };
             eprintln!("DhcpEnumSubnetElements {id}: returned {code}, read={read}");
-            let page = RangeGuard(raw);
             match code {
                 259 => break,
                 0 | 234 => {}
@@ -246,7 +197,7 @@ mod native {
             // SAFETY: the successful API response owns count valid elements.
             // Check nullability/counts and the union tag before dereferencing.
             unsafe {
-                match page.0.as_ref() {
+                match raw.as_ref() {
                     None if read == 0 => {}
                     Some(page) if page.count == read && (read == 0 || !page.elements.is_null()) => {
                         for index in 0..read as usize {
@@ -307,12 +258,53 @@ mod native {
             assert_eq!(unsafe { copy_name(name.as_ptr()) }.unwrap(), "Büro 東京");
             assert_eq!(unsafe { copy_name(ptr::null()) }.unwrap(), "");
         }
+        #[test]
+        fn copies_snapshot_without_owning_nested_storage() {
+            // Synthetic graph: several pointers share storage, including an
+            // interior pointer. Only the Rust fixture owns that storage.
+            let mut text: Vec<u16> = "Example\0shared\0".encode_utf16().collect();
+            let interior = unsafe { text.as_mut_ptr().add(8) };
+            let raw = Box::new(SubnetInfo {
+                address: 0xC0000200,
+                mask: 0xFFFFFF00,
+                name: text.as_mut_ptr(),
+                comment: interior,
+                host: HostInfo {
+                    address: 0,
+                    netbios_name: interior,
+                    host_name: interior,
+                },
+                state: 0,
+            });
+            let result = unsafe { copy_info(&*raw, Ipv4Addr::new(192, 0, 2, 0)) }.unwrap();
+            drop(raw);
+            drop(text);
+            assert_eq!(result, ("Example".into(), 0));
+        }
     }
 }
 
-/// List every scope, preserving per-scope detail errors instead of dropping rows.
-pub fn list_scope_details(server: &str) -> Result<Vec<ScopeDetails>, String> {
+fn claim_worker_query(used: &std::sync::atomic::AtomicBool) -> Result<(), String> {
+    used.compare_exchange(
+        false,
+        true,
+        std::sync::atomic::Ordering::AcqRel,
+        std::sync::atomic::Ordering::Acquire,
+    )
+    .map(|_| ())
+    .map_err(|_| "Scope details require a fresh one-shot worker process.".into())
+}
+
+/// Read one scope-detail snapshot in a dedicated, short-lived worker process.
+///
+/// Native detail buffers deliberately have process lifetime: nested pointers are
+/// never treated as independent allocations. Exit the worker after serializing
+/// the owned Rust result so Windows reclaims the request arena. Only one query
+/// is permitted per process; the GUI starts a fresh child for every query.
+pub fn list_scope_details_for_worker(server: &str) -> Result<Vec<ScopeDetails>, String> {
     let server = crate::validate_server(server)?;
+    static USED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    claim_worker_query(&USED)?;
     let ids = crate::list_scopes(server)?;
     #[cfg(windows)]
     {
@@ -328,6 +320,12 @@ pub fn list_scope_details(server: &str) -> Result<Vec<ScopeDetails>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn worker_snapshot_is_single_use() {
+        let used = std::sync::atomic::AtomicBool::new(false);
+        assert!(claim_worker_query(&used).is_ok());
+        assert!(claim_worker_query(&used).is_err());
+    }
     #[test]
     fn preserves_partial_failures_and_distinguishes_empty_ranges() {
         let id = Ipv4Addr::new(10, 0, 0, 0);

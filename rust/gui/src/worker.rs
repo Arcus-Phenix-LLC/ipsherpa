@@ -21,7 +21,7 @@ pub fn child_main(mode: &str, server: &str) -> i32 {
         ipsherpa::validate_server(server)?;
         eprintln!("worker {mode}: query begin");
         let scopes = match mode {
-            "details" => ipsherpa::list_scope_details(server)?
+            "details" => ipsherpa::list_scope_details_for_worker(server)?
                 .into_iter()
                 .map(ScopeRow::from)
                 .collect(),

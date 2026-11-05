@@ -1476,7 +1476,7 @@ version = "0.1.0"
 
 [[package]]
 name = "ipsherpa-gui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ipsherpa",
  "serde",
