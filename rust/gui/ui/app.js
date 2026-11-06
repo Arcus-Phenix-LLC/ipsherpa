@@ -95,9 +95,11 @@ function setBusy(value) {
   updateFilterControls();
   updatePaging();
   window.MultiServer?.setBusy(value);
+  window.ScopeCapacity?.setBusy(value);
 }
 
 function clearSelection() {
+  window.ScopeCapacity?.reset();
   selectedScope = null;
   recordData = [];
   recordsLoaded = false;
@@ -207,6 +209,7 @@ async function queryRecords() {
 function selectScope(scope, kind = "leases") {
   if (busy) return;
   selectedScope = scope;
+  window.ScopeCapacity?.selectionChanged(connectedServer, scope);
   filters = { leases: blankFilter(), reservations: blankFilter() };
   activeTab = kind;
   recordPanel.hidden = false;

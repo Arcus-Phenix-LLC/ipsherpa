@@ -1,6 +1,8 @@
 use std::net::Ipv4Addr;
 
+mod capacity;
 mod details;
+pub use capacity::{scope_capacity_for_worker, CapacitySnapshot, PoolTotals, ScopeStatistics};
 mod records;
 pub use details::{list_scope_details_for_worker, AddressRange, ScopeDetails};
 pub use records::{list_records_for_worker, validate_scope_id, ClientRecord};

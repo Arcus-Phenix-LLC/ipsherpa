@@ -1,4 +1,4 @@
-use crate::{diagnostics, RecordList, RecordRow, ScopeList, ScopeRow};
+use crate::{diagnostics, CapacityRow, RecordList, RecordRow, ScopeList, ScopeRow};
 use std::{
     io::Write,
     process::{Command, Output},
@@ -20,6 +20,13 @@ pub fn child_main(mode: &str, server: &str, scope: Option<&str>) -> i32 {
     let result = (|| -> Result<serde_json::Value, String> {
         ipsherpa::validate_server(server)?;
         eprintln!("worker {mode}: query begin");
+        if mode == "capacity" {
+            let scope =
+                ipsherpa::validate_scope_id(scope.ok_or("A scope ID is required.")?)?.to_string();
+            let snapshot = ipsherpa::scope_capacity_for_worker(server, &scope)?;
+            return serde_json::to_value(CapacityRow::new(server, &scope, snapshot))
+                .map_err(|error| error.to_string());
+        }
         if matches!(mode, "leases" | "reservations") {
             let scope =
                 ipsherpa::validate_scope_id(scope.ok_or("A scope ID is required.")?)?.to_string();
@@ -125,6 +132,19 @@ pub fn records(server: &str, scope: &str, kind: &str) -> Result<RecordList, Stri
             result.records.len()
         )),
         Err(error) => diagnostics::log(&format!("{kind} query failed: {error}")),
+    }
+    result.map_err(|error| format!("{error}. Diagnostic log: {}", diagnostics::path().display()))
+}
+
+pub fn capacity(server: &str, scope: &str) -> Result<CapacityRow, String> {
+    let result =
+        decode_typed::<CapacityRow>("capacity", run_output("capacity", server, Some(scope))?);
+    match &result {
+        Ok(row) => diagnostics::log(&format!(
+            "Capacity query complete: {} warnings",
+            row.warnings.len()
+        )),
+        Err(error) => diagnostics::log(&format!("Capacity query failed: {error}")),
     }
     result.map_err(|error| format!("{error}. Diagnostic log: {}", diagnostics::path().display()))
 }
@@ -277,5 +297,41 @@ mod tests {
         };
         let result = decode_typed::<RecordList>("leases", output).unwrap();
         assert_eq!(result.records[0].client_id, "01-02-03");
+    }
+    #[cfg(windows)]
+    #[test]
+    fn capacity_payload_preserves_zero_and_missing_values() {
+        use std::os::windows::process::ExitStatusExt;
+        let payload = CapacityRow::new(
+            "EXAMPLE-DHCP",
+            "192.0.2.0",
+            ipsherpa::CapacitySnapshot {
+                statistics: Some(ipsherpa::ScopeStatistics {
+                    in_use: 0,
+                    free: 10,
+                    pending_offers: 0,
+                }),
+                configured_ranges: Some(vec![]),
+                exclusions: None,
+                totals: None,
+                warnings: vec!["Exclusions unavailable".into()],
+            },
+        );
+        let bytes = serde_json::to_vec(&Ok::<_, String>(payload)).unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["Ok"]["statistics"]["utilizationPercent"], 0.0);
+        assert_eq!(json["Ok"]["statistics"]["inUse"], 0);
+        assert!(json["Ok"]["exclusions"].is_null());
+        let output = Output {
+            status: std::process::ExitStatus::from_raw(0),
+            stdout: bytes,
+            stderr: vec![],
+        };
+        assert_eq!(
+            decode_typed::<CapacityRow>("capacity", output)
+                .unwrap()
+                .scope_id,
+            "192.0.2.0"
+        );
     }
 }

@@ -230,3 +230,32 @@ worker smoke test validated structured stdout and diagnostic file creation.
 Native buffer tests use only synthetic data, including aliased and interior
 pointers, and verify that the copied snapshot outlives its source storage.
 Runtime logs and environment-specific diagnostic data must not be committed.
+
+## Scope utilization and exclusions (0.5.0)
+
+Select a scope, expand **Utilization & exclusions**, then choose **Load overview**.
+The overview refreshes separately from lease and reservation tables. It reads
+DHCP-reported in-use, free, and pending-offer counters using DhcpGetMibInfoV5.
+Utilization is in-use / (in-use + free); a zero denominator is unavailable.
+Pending offers remain a separate counter.
+
+Configured range totals merge overlapping intervals. Excluded totals count only
+addresses inside configured ranges, once each. Range addresses after exclusions
+are not free-address discovery, and exclusions are not subtracted again from the
+DHCP free counter. Empty exclusions mean none configured; unavailable exclusions
+indicate a query failure. Independent failures preserve other available sections.
+
+These read-only calls run in a disposable native worker. As with scope details,
+native result buffers live until that worker exits. Scope options and server
+health remain later milestones.
+
+For lab comparison, use synthetic placeholders below with your own target:
+
+```powershell
+Get-DhcpServerv4ScopeStatistics -ComputerName EXAMPLE-DHCP -ScopeId 192.0.2.0
+Get-DhcpServerv4ExclusionRange -ComputerName EXAMPLE-DHCP -ScopeId 192.0.2.0
+```
+
+Browser tests mock responses and do not establish live Windows DHCP parity.
+Runtime logs, saved profiles, and environment-specific diagnostics are excluded
+from repository content.

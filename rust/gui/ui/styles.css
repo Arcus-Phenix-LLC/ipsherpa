@@ -97,6 +97,22 @@ tbody tr:hover { background: #f8faf9; }
 .cross-table td:nth-child(4), .cross-table td:nth-child(6) { font-family: Consolas, monospace; }
 .cross-table td:nth-child(7) { min-width: 150px; }
 #cross-issues { margin: 8px 0 0; padding-left: 18px; }
+.capacity-panel { margin: 0 24px 18px; border: 1px solid #dce5e2; border-radius: 9px; }
+.capacity-panel summary { cursor: pointer; padding: 15px 18px; font-size: 14px; font-weight: 600; }
+.capacity-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px 12px; }
+#capacity-context { overflow-wrap: anywhere; }
+.capacity-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 18px 24px; }
+.capacity-grid div { background: #f3f7f4; border-radius: 8px; padding: 14px; }
+.capacity-grid dt { font-size: 11px; color: #53736d; line-height: 1.5; }
+.capacity-grid dd { margin: 8px 0 0; font-size: 22px; font-weight: 650; overflow-wrap: anywhere; }
+.pool-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+#capacity-meter { display: block; width: calc(100% - 48px); height: 15px; margin: 0 24px 12px; }
+#capacity-warnings { padding-left: 18px; margin-bottom: 0; }
+.exclusion-title { margin: 0 24px 10px; }
+.exclusions-table { min-width: 520px; }
+.exclusions-table td:nth-child(2) { font-family: Consolas,monospace; }
+.exclusions-table td:nth-child(3) { min-width: 80px; }
+@media (max-width: 760px) { .capacity-grid, .pool-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .capacity-grid dd { font-size: 18px; } }
 footer { display: flex; justify-content: space-between; gap: 12px; color: #71877e; font-size: 11px; margin-top: 19px; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

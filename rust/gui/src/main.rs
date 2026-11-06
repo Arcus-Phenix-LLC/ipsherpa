@@ -67,6 +67,66 @@ struct RecordRow {
     options_present: Option<bool>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CapacityRow {
+    server: String,
+    scope_id: String,
+    statistics: Option<StatisticsRow>,
+    configured_ranges: Option<Vec<RangeRow>>,
+    exclusions: Option<Vec<RangeRow>>,
+    totals: Option<TotalsRow>,
+    warnings: Vec<String>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StatisticsRow {
+    in_use: u32,
+    free: u32,
+    pending_offers: u32,
+    utilization_percent: Option<f64>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TotalsRow {
+    configured: u64,
+    excluded: u64,
+    after_exclusions: u64,
+}
+impl CapacityRow {
+    fn new(server: &str, scope: &str, snapshot: ipsherpa::CapacitySnapshot) -> Self {
+        let ranges = |ranges: Option<Vec<ipsherpa::AddressRange>>| {
+            ranges.map(|ranges| {
+                ranges
+                    .into_iter()
+                    .map(|range| RangeRow {
+                        start: range.start.to_string(),
+                        end: range.end.to_string(),
+                    })
+                    .collect()
+            })
+        };
+        Self {
+            server: server.into(),
+            scope_id: scope.into(),
+            statistics: snapshot.statistics.map(|s| StatisticsRow {
+                in_use: s.in_use,
+                free: s.free,
+                pending_offers: s.pending_offers,
+                utilization_percent: s.utilization_percent(),
+            }),
+            configured_ranges: ranges(snapshot.configured_ranges),
+            exclusions: ranges(snapshot.exclusions),
+            totals: snapshot.totals.map(|t| TotalsRow {
+                configured: t.configured,
+                excluded: t.excluded,
+                after_exclusions: t.after_exclusions,
+            }),
+            warnings: snapshot.warnings,
+        }
+    }
+}
+
 impl From<ipsherpa::ClientRecord> for RecordRow {
     fn from(record: ipsherpa::ClientRecord) -> Self {
         Self {
@@ -156,6 +216,30 @@ async fn list_records(
     .map_err(|error| format!("The record query worker failed: {error}"))?
 }
 
+#[tauri::command]
+async fn scope_capacity(
+    server: String,
+    scope_id: String,
+    state: tauri::State<'_, QueryState>,
+) -> Result<CapacityRow, String> {
+    let server = ipsherpa::validate_server(&server)?.to_owned();
+    let scope = ipsherpa::validate_scope_id(&scope_id)?.to_string();
+    if state
+        .0
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("Another query is running. Wait for it to finish.".into());
+    }
+    let guard = QueryGuard(Arc::clone(&state.0));
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        worker::capacity(&server, &scope)
+    })
+    .await
+    .map_err(|error| format!("Capacity worker failed: {error}"))?
+}
+
 fn main() {
     diagnostics::init();
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -172,7 +256,11 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(QueryState::default())
-        .invoke_handler(tauri::generate_handler![list_scopes, list_records])
+        .invoke_handler(tauri::generate_handler![
+            list_scopes,
+            list_records,
+            scope_capacity
+        ])
         .run(tauri::generate_context!())
         .expect("Failed to start IPSherpa. Check the WebView2 runtime installation.");
 }

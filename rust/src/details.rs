@@ -166,21 +166,22 @@ mod native {
         Ok((name, info.state))
     }
 
-    fn ranges(server: &[u16], id: Ipv4Addr) -> Result<Vec<AddressRange>, String> {
+    fn ranges(server: &[u16], id: Ipv4Addr, kind: u32) -> Result<Vec<AddressRange>, String> {
         let mut resume = 0;
+        let mut seen = std::collections::HashSet::from([0]);
         let mut result = Vec::new();
         loop {
             let previous = resume;
             let mut raw = ptr::null_mut();
             let (mut read, mut total) = (0, 0);
             eprintln!("DhcpEnumSubnetElements {id}: call begin");
-            // SAFETY: all out parameters are initialized. kind=0 requests
-            // DhcpIpRanges, not exclusions, leases or inferred subnet bounds.
+            // SAFETY: initialized output parameters; kind is 0 for allocation
+            // ranges or 3 for exclusions, both represented by DHCP_IP_RANGE.
             let code = unsafe {
                 DhcpEnumSubnetElements(
                     server.as_ptr(),
                     u32::from(id),
-                    0,
+                    kind,
                     &mut resume,
                     65536,
                     &mut raw,
@@ -194,46 +195,69 @@ mod native {
                 0 | 234 => {}
                 code => return Err(api_error("DhcpEnumSubnetElements", id, code)),
             }
-            // SAFETY: the successful API response owns count valid elements.
-            // Check nullability/counts and the union tag before dereferencing.
-            unsafe {
-                match raw.as_ref() {
-                    None if read == 0 => {}
-                    Some(page) if page.count == read && (read == 0 || !page.elements.is_null()) => {
-                        for index in 0..read as usize {
-                            let element = &*page.elements.add(index);
-                            if !matches!(element.kind, 0 | 5..=7) || element.data.is_null() {
-                                return Err(format!(
-                                    "DHCP returned an invalid range element for {id}"
-                                ));
-                            }
-                            let range = &*element.data;
-                            if range.start > range.end {
-                                return Err(format!("DHCP returned a reversed range for {id}"));
-                            }
-                            result.push(AddressRange {
-                                start: scope_address(range.start),
-                                end: scope_address(range.end),
-                            });
-                        }
-                    }
-                    _ => return Err(format!("DHCP returned inconsistent range data for {id}")),
-                }
-            }
+            result.extend(unsafe { copy_ranges(raw, read, kind, id) }?);
             if code == 0 {
                 break;
             }
-            if resume == previous || read == 0 {
+            if resume == previous || read == 0 || !seen.insert(resume) {
                 return Err(format!("Range enumeration made no progress for {id}"));
             }
         }
         Ok(result)
     }
 
+    unsafe fn copy_ranges(
+        raw: *const ElementArray,
+        read: u32,
+        kind: u32,
+        id: Ipv4Addr,
+    ) -> Result<Vec<AddressRange>, String> {
+        let mut result = Vec::new();
+        // SAFETY: successful SDK buffers or valid fixtures, retained for the
+        // entire copy. Validate the array and union tag before dereferencing.
+        unsafe {
+            match raw.as_ref() {
+                None if read == 0 => {}
+                Some(page) if page.count == read && (read == 0 || !page.elements.is_null()) => {
+                    for index in 0..read as usize {
+                        let element = &*page.elements.add(index);
+                        let valid = if kind == 3 {
+                            element.kind == 3
+                        } else {
+                            matches!(element.kind, 0 | 5..=7)
+                        };
+                        if !valid || element.data.is_null() {
+                            return Err(format!("DHCP returned an invalid range element for {id}"));
+                        }
+                        let range = &*element.data;
+                        if range.start > range.end {
+                            return Err(format!("DHCP returned a reversed range for {id}"));
+                        }
+                        result.push(AddressRange {
+                            start: scope_address(range.start),
+                            end: scope_address(range.end),
+                        });
+                    }
+                }
+                _ => return Err(format!("DHCP returned inconsistent range data for {id}")),
+            }
+        }
+        Ok(result)
+    }
+
+    pub(super) fn query_ranges(
+        server: &str,
+        id: Ipv4Addr,
+        excluded: bool,
+    ) -> Result<Vec<AddressRange>, String> {
+        let wide: Vec<u16> = server.encode_utf16().chain(Some(0)).collect();
+        ranges(&wide, id, if excluded { 3 } else { 0 })
+    }
+
     pub fn query(server: &str, ids: Vec<Ipv4Addr>) -> Vec<ScopeDetails> {
         let server: Vec<u16> = server.encode_utf16().chain(Some(0)).collect();
         ids.into_iter()
-            .map(|id| assemble(id, info(&server, id), ranges(&server, id)))
+            .map(|id| assemble(id, info(&server, id), ranges(&server, id, 0)))
             .collect()
     }
 
@@ -259,6 +283,32 @@ mod native {
             assert_eq!(unsafe { copy_name(ptr::null()) }.unwrap(), "");
         }
         #[test]
+        fn copies_exclusions_with_correct_union_tag_and_bounds() {
+            let id = Ipv4Addr::new(192, 0, 2, 0);
+            let mut range = IpRange {
+                start: 0xC000020A,
+                end: 0xC0000213,
+            };
+            let mut element = Element {
+                kind: 3,
+                data: &mut range,
+            };
+            let page = ElementArray {
+                count: 1,
+                elements: &mut element,
+            };
+            let result = unsafe { copy_ranges(&page, 1, 3, id) }.unwrap();
+            assert_eq!(result[0].start, Ipv4Addr::new(192, 0, 2, 10));
+            assert!(unsafe { copy_ranges(&page, 1, 0, id) }.is_err());
+            assert!(unsafe { copy_ranges(&page, 2, 3, id) }.is_err());
+            range.end = range.start - 1;
+            assert!(range.end < range.start);
+            assert!(unsafe { copy_ranges(&page, 1, 3, id) }.is_err());
+            assert!(unsafe { copy_ranges(std::ptr::null(), 0, 3, id) }
+                .unwrap()
+                .is_empty());
+        }
+        #[test]
         fn copies_snapshot_without_owning_nested_storage() {
             // Synthetic graph: several pointers share storage, including an
             // interior pointer. Only the Rust fixture owns that storage.
@@ -282,6 +332,15 @@ mod native {
             assert_eq!(result, ("Example".into(), 0));
         }
     }
+}
+
+#[cfg(windows)]
+pub(crate) fn read_ranges_in_worker(
+    server: &str,
+    id: Ipv4Addr,
+    excluded: bool,
+) -> Result<Vec<AddressRange>, String> {
+    native::query_ranges(server, id, excluded)
 }
 
 fn claim_worker_query(used: &std::sync::atomic::AtomicBool) -> Result<(), String> {

@@ -8,6 +8,7 @@
   <script src="filters.js" defer></script>
   <script src="fleet.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="capacity.js" defer></script>
   <script src="multiserver.js" defer></script>
 </head>
 <body>
@@ -80,6 +81,24 @@
           <div><p class="eyebrow">SELECTED SCOPE</p><h2 id="records-title">Scope records</h2><p id="records-context" class="hint"></p></div>
           <button id="records-refresh" type="button" class="secondary">Refresh records</button>
         </div>
+        <details id="capacity-panel" class="capacity-panel">
+          <summary>Utilization &amp; exclusions</summary>
+          <div class="capacity-heading"><p id="capacity-context" class="hint"></p><button id="capacity-refresh" type="button" class="secondary" disabled>Load overview</button></div>
+          <div id="capacity-results" aria-busy="false">
+            <div id="capacity-status" class="status" role="status" aria-live="polite">Overview not loaded</div>
+            <p id="capacity-slow" class="hint record-hint" hidden>The server is taking longer to respond. Windows controls the current query duration.</p>
+            <div id="capacity-issue-panel" class="error" role="alert" hidden><strong>Overview queries needing attention</strong><ul id="capacity-warnings"></ul></div>
+            <dl class="capacity-grid"><div><dt>In use</dt><dd id="capacity-in-use">Not loaded</dd></div><div><dt>DHCP free</dt><dd id="capacity-free">Not loaded</dd></div><div><dt>Pending offers</dt><dd id="capacity-offers">Not loaded</dd></div><div><dt>Utilization</dt><dd id="capacity-percent">Not loaded</dd></div></dl>
+            <meter id="capacity-meter" min="0" max="100" value="0" aria-label="Scope utilization: in use divided by in use plus free" hidden></meter>
+            <p class="hint record-hint">Utilization = in use ÷ (in use + free); unavailable when both counts are zero. Pending offers are shown separately. DHCP free is not a network conflict check.</p>
+            <dl class="capacity-grid pool-grid"><div><dt>Configured range addresses</dt><dd id="capacity-configured">Not loaded</dd></div><div><dt>Excluded within ranges</dt><dd id="capacity-excluded">Not loaded</dd></div><div><dt>Range addresses after exclusions</dt><dd id="capacity-usable">Not loaded</dd></div></dl>
+            <p class="hint record-hint">Range totals merge overlaps and clip exclusions to the configured pool. These totals do not represent free addresses; exclusions are not subtracted again from DHCP free.</p>
+            <h3 class="exclusion-title">Configured exclusion ranges</h3>
+            <p id="exclusion-empty" class="hint record-hint">Load the overview to read exclusion ranges.</p>
+            <div id="exclusion-table-wrapper" class="table-wrapper" hidden><table class="exclusions-table"><caption class="sr-only">Excluded address ranges for the selected server and scope</caption><thead><tr><th scope="col">Start address</th><th scope="col">End address</th><th scope="col">Range size</th></tr></thead><tbody id="exclusion-rows"></tbody></table></div>
+            <p class="hint record-hint">Overview values and record tables refresh separately.</p>
+          </div>
+        </details>
         <div class="tabs" role="tablist" aria-label="Scope record type">
           <button id="tab-leases" class="tab" type="button" role="tab" aria-selected="true" aria-controls="records-results">Leases</button>
           <button id="tab-reservations" class="tab" type="button" role="tab" aria-selected="false" aria-controls="records-results" tabindex="-1">Reservations</button>
@@ -104,7 +123,7 @@
           <p id="lease-time-hint" class="hint record-hint">Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
         </div>
       </section>
-      <footer><span>IPSherpa 0.4.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
+      <footer><span>IPSherpa 0.5.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
     </main>
   </div>
 </body>

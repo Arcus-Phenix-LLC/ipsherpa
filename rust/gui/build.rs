@@ -1,8 +1,10 @@
 fn main() {
-    tauri_build::try_build(
-        tauri_build::Attributes::new().app_manifest(
-            tauri_build::AppManifest::new().commands(&["list_scopes", "list_records"]),
-        ),
-    )
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "list_scopes",
+            "list_records",
+            "scope_capacity",
+        ]),
+    ))
     .expect("Failed to build IPSherpa GUI resources");
 }
