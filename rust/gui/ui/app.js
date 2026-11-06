@@ -15,6 +15,7 @@ const empty = document.querySelector("#empty");
 const table = document.querySelector("#table-wrapper");
 let busy = false;
 let connectedServer = null;
+let loadedScopes = [];
 let selectedScope = null;
 let activeTab = "leases";
 let recordData = [];
@@ -93,6 +94,7 @@ function setBusy(value) {
   recordRefresh.disabled = value || selectedScope === null;
   updateFilterControls();
   updatePaging();
+  window.MultiServer?.setBusy(value);
 }
 
 function clearSelection() {
@@ -202,11 +204,11 @@ async function queryRecords() {
   }
 }
 
-function selectScope(scope) {
+function selectScope(scope, kind = "leases") {
   if (busy) return;
   selectedScope = scope;
   filters = { leases: blankFilter(), reservations: blankFilter() };
-  activeTab = "leases";
+  activeTab = kind;
   recordPanel.hidden = false;
   document.querySelector("#records-title").textContent = scope.name || `Scope ${scope.scopeId}`;
   document.querySelectorAll(".scope-row").forEach(row => {
@@ -216,7 +218,7 @@ function selectScope(scope) {
   });
   updateTabs();
   recordPanel.scrollIntoView({ block: "start" });
-  queryRecords();
+  return queryRecords();
 }
 
 function updateTabs() {
@@ -268,6 +270,7 @@ async function queryScopes(server) {
 
   busy = true;
   connectedServer = null;
+  loadedScopes = [];
   clearSelection();
   setBusy(true);
   serverInput.disabled = true;
@@ -287,6 +290,7 @@ async function queryScopes(server) {
   try {
     const result = await window.__TAURI__.core.invoke("list_scopes", { server });
     connectedServer = result.server;
+    loadedScopes = result.scopes;
     serverInput.value = result.server;
     const fragment = document.createDocumentFragment();
     result.scopes.forEach((scope) => {
@@ -355,6 +359,7 @@ async function queryScopes(server) {
     refreshButton.disabled = connectedServer === null;
     setBusy(false);
     panel.setAttribute("aria-busy", "false");
+    window.MultiServer?.connectionChanged();
   }
 }
 

@@ -66,6 +66,47 @@ For a lab check, search for a known record from a later table page, combine a
 lease-state filter with its hostname, and try a client ID with alternate MAC
 separators. Confirm counts and that Clear filters restores the full snapshot.
 
+## Multiple servers and cross-scope search (0.4.0)
+
+Use **Save typed server** to save the hostname/IP in the connection field.
+Selecting a saved server fills that field; **Connect** switches the per-scope
+browser. Saved names persist in this computer's WebView storage. No passwords
+or credentials are stored. **Remove saved server** removes the saved name;
+it does not disconnect a server that is currently being browsed. If storage is
+unavailable, the list remains usable for the current session with a warning.
+
+Expand **Search across servers**, check target servers, enter an IP, name or
+client-ID search, and choose leases, reservations, or both. Saved servers and
+the currently connected server are available as targets. Queries start only
+when **Search servers** is selected, not while typing. Search reuses the same
+case-insensitive and separator-insensitive matching as per-scope browsing.
+
+The search enumerates every scope per selected server, then reads the selected
+record types sequentially through existing isolated workers. Results arrive as
+queries complete, with a server, scope and record type on every row. Equal IPs
+on different servers/scopes/types remain separate results. Hostname case
+variants are deduplicated, but aliases/IPs for the same physical server are not.
+
+Failures are listed by server/scope/type and do not discard successful matches.
+Stopped or failed searches are labeled **Partial results**; a zero-match partial
+search does not claim that all selected servers have no matching records.
+Scope metadata warnings are distinguished from failed record queries. The
+summary reports discovered scopes, completed record queries and full server
+coverage. Windows RPC still controls the current query duration.
+
+**Stop after current query** prevents the next query from starting. It cannot
+interrupt an active RPC. Result pages contain 100 matches and page locally.
+Select a result's scope link to connect to its source and open the corresponding
+Leases/Reservations tab. Existing per-scope search/filter controls remain.
+Changing target selections or the search term does not alter the provenance of
+an existing result snapshot; run a new search to update it.
+
+Lab acceptance: save two readable servers, search both across multiple scopes,
+compare known matches with their consoles, open a result on the second server,
+and test an unreadable server alongside a readable one. Confirm that partial
+results remain usable and that Stop prevents subsequent queries. Saved names
+and all diagnostic data stay local and must not be added to the repository.
+
 ## Build and launch
 
 Requirements: Windows, Rust 1.93.0, MSVC C++ Build Tools and Windows SDK, and the
@@ -148,6 +189,8 @@ node gui/tests/browser.cjs
 node gui/tests/records.cjs
 node --test gui/tests/filters.cjs
 node gui/tests/search.cjs
+node --test gui/tests/fleet.cjs
+node gui/tests/multiserver.cjs
 ```
 
 These mock IPC to cover Unicode names, multiple/empty/unavailable ranges,

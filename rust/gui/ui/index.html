@@ -6,7 +6,9 @@
   <title>IPSherpa | Scope browser</title>
   <link rel="stylesheet" href="styles.css">
   <script src="filters.js" defer></script>
+  <script src="fleet.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="multiserver.js" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -29,7 +31,36 @@
           </div>
           <p id="server-help" class="hint">Uses your current Windows account. No credentials are saved.</p>
         </form>
+        <div class="profile-controls">
+          <div><label for="server-profile">Saved servers on this computer</label><select id="server-profile"><option value="">Choose a saved server…</option></select></div>
+          <button id="save-server" type="button" class="secondary">Save typed server</button>
+          <button id="remove-server" type="button" class="secondary" disabled>Remove saved server</button>
+        </div>
+        <p id="profiles-message" class="hint">Save server names for reuse. Select a saved server, then Connect. No credentials are stored.</p>
       </section>
+
+      <details id="cross-panel" class="card cross-panel">
+        <summary>Search across servers <span class="hint">All scopes · leases and reservations</span></summary>
+        <form id="cross-form">
+          <fieldset><legend>Search targets</legend><div id="cross-targets" class="target-list"></div><p class="hint">Saved servers plus the currently connected server. Check only the servers you want to query.</p></fieldset>
+          <div class="cross-controls">
+            <div class="search-control"><label for="cross-query">Search term</label><input id="cross-query" type="search" required placeholder="IP, hostname or client ID" autocomplete="off" spellcheck="false"></div>
+            <div><label for="cross-field">Search in</label><select id="cross-field"><option value="all">All search fields</option><option value="ip">IP address</option><option value="name">Hostname / name</option><option value="clientId">Client ID / MAC</option></select></div>
+            <div><label for="cross-kind">Record types</label><select id="cross-kind"><option value="both">Leases and reservations</option><option value="leases">Leases</option><option value="reservations">Reservations</option></select></div>
+            <button id="cross-search" type="submit">Search servers</button>
+            <button id="cross-stop" type="button" class="secondary" disabled>Stop after current query</button>
+          </div>
+          <p class="hint">Search queries every scope on the checked servers. Stop takes effect when the current Windows query returns.</p>
+        </form>
+        <div id="cross-results" aria-busy="false">
+          <p id="cross-context" class="hint cross-context"></p>
+          <div id="cross-status" class="status" role="status" aria-live="polite">Ready to search</div>
+          <div id="cross-issue-panel" class="error" hidden><strong>Queries needing attention</strong><ul id="cross-issues"></ul></div>
+          <p id="cross-empty" class="empty">Select servers and a search term to begin.</p>
+          <div id="cross-table-wrapper" class="table-wrapper" hidden><table class="records-table cross-table"><caption class="sr-only">Cross-server matches with their source server, scope and record type</caption><thead><tr><th scope="col">Server</th><th scope="col">Scope</th><th scope="col">Record type</th><th scope="col">IP address</th><th scope="col">Name</th><th scope="col">Client ID</th><th scope="col">State / type</th></tr></thead><tbody id="cross-rows"></tbody></table></div>
+          <div id="cross-pager" class="pager" hidden><button id="cross-prev" type="button" class="secondary">Previous</button><span id="cross-page-status" role="status"></span><button id="cross-next" type="button" class="secondary">Next</button></div>
+        </div>
+      </details>
 
       <section class="scopes card" aria-labelledby="scopes-title" aria-busy="false" id="scope-panel">
         <div class="section-heading scope-heading">
@@ -73,7 +104,7 @@
           <p id="lease-time-hint" class="hint record-hint">Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
         </div>
       </section>
-      <footer><span>IPSherpa 0.3.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
+      <footer><span>IPSherpa 0.4.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
     </main>
   </div>
 </body>

@@ -76,6 +76,27 @@ tbody tr:hover { background: #f8faf9; }
 .filters select:focus-visible { outline: 3px solid #80b8aa; outline-offset: 3px; }
 .filter-help, .filter-summary { margin: 8px 24px; }
 .filter-summary { color: #315b52; }
+.profile-controls, .cross-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.profile-controls { margin-top: 18px; padding-top: 18px; border-top: 1px solid #edf1ef; }
+.profile-controls > div { flex: 1 1 230px; min-width: 0; }
+.profile-controls select, .cross-controls select { font: inherit; font-size: 13px; color: #173237; background: #fcfdfc; border: 1px solid #bacdc7; border-radius: 7px; padding: 11px; width: 100%; min-height: 41px; }
+.profile-controls select:focus-visible, .cross-controls select:focus-visible { outline: 3px solid #80b8aa; outline-offset: 3px; }
+.cross-panel { margin-bottom: 20px; }
+.cross-panel summary { padding: 20px 24px; font-size: 16px; font-weight: 650; cursor: pointer; }
+.cross-panel summary .hint { margin-left: 12px; font-weight: 400; }
+#cross-form { padding: 0 24px 16px; margin: 0; }
+#cross-form fieldset { margin: 0 0 18px; border: 1px solid #dce5e2; border-radius: 8px; padding: 12px; }
+#cross-form legend { padding: 0 6px; font-size: 12px; font-weight: 600; }
+.target-list { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.target-list label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; overflow-wrap: anywhere; max-width: 100%; }
+.target-list input { flex: none; padding: 0; accent-color: #175a50; }
+.cross-controls .search-control { flex: 1 1 230px; }
+.cross-controls input { width: 100%; }
+.cross-context { margin: 0 24px 8px; overflow-wrap: anywhere; }
+.cross-table td:nth-child(3) { min-width: 105px; font-family: inherit; white-space: normal; }
+.cross-table td:nth-child(4), .cross-table td:nth-child(6) { font-family: Consolas, monospace; }
+.cross-table td:nth-child(7) { min-width: 150px; }
+#cross-issues { margin: 8px 0 0; padding-left: 18px; }
 footer { display: flex; justify-content: space-between; gap: 12px; color: #71877e; font-size: 11px; margin-top: 19px; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
