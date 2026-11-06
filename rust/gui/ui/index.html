@@ -11,18 +11,17 @@
   <script src="capacity.js" defer></script>
   <script src="inspection.js" defer></script>
   <script src="multiserver.js" defer></script>
+  <script src="navigation.js" defer></script>
 </head>
 <body>
-  <div class="shell">
-    <header class="masthead">
+  <div class="app-layout">
+    <aside id="sidebar" aria-label="Server connections and navigation">
       <div class="brand"><span class="brand-mark" aria-hidden="true">↗</span><span>IPSherpa</span></div>
-      <span class="mode"><span aria-hidden="true">●</span> Read-only preview</span>
-    </header>
-    <main>
-      <p class="eyebrow">MICROSOFT DHCP / SCOPE BROWSER</p>
-      <h1>A clear view of your IP space.</h1>
-      <p class="intro">Browse IPv4 scopes, then select one to inspect its leases and reservations.</p>
-
+      <nav aria-label="Main navigation">
+        <button id="nav-server" class="nav-item" type="button" aria-current="page">Server overview</button>
+        <button id="nav-scope" class="nav-item" type="button" disabled>Selected scope</button>
+        <button id="nav-search" class="nav-item" type="button">Search across servers</button>
+      </nav>
       <section class="connection card" aria-labelledby="connection-title">
         <div class="section-heading"><h2 id="connection-title">Server connection</h2><span class="tag">Windows identity</span></div>
         <form id="connection-form">
@@ -40,32 +39,18 @@
         </div>
         <p id="profiles-message" class="hint">Save server names for reuse. Select a saved server, then Connect. No credentials are stored.</p>
       </section>
-
-      <details id="cross-panel" class="card cross-panel">
-        <summary>Search across servers <span class="hint">All scopes · leases and reservations</span></summary>
-        <form id="cross-form">
-          <fieldset><legend>Search targets</legend><div id="cross-targets" class="target-list"></div><p class="hint">Saved servers plus the currently connected server. Check only the servers you want to query.</p></fieldset>
-          <div class="cross-controls">
-            <div class="search-control"><label for="cross-query">Search term</label><input id="cross-query" type="search" required placeholder="IP, hostname or client ID" autocomplete="off" spellcheck="false"></div>
-            <div><label for="cross-field">Search in</label><select id="cross-field"><option value="all">All search fields</option><option value="ip">IP address</option><option value="name">Hostname / name</option><option value="clientId">Client ID / MAC</option></select></div>
-            <div><label for="cross-kind">Record types</label><select id="cross-kind"><option value="both">Leases and reservations</option><option value="leases">Leases</option><option value="reservations">Reservations</option></select></div>
-            <button id="cross-search" type="submit">Search servers</button>
-            <button id="cross-stop" type="button" class="secondary" disabled>Stop after current query</button>
-          </div>
-          <p class="hint">Search queries every scope on the checked servers. Stop takes effect when the current Windows query returns.</p>
-        </form>
-        <div id="cross-results" aria-busy="false">
-          <p id="cross-context" class="hint cross-context"></p>
-          <div id="cross-status" class="status" role="status" aria-live="polite">Ready to search</div>
-          <div id="cross-issue-panel" class="error" hidden><strong>Queries needing attention</strong><ul id="cross-issues"></ul></div>
-          <p id="cross-empty" class="empty">Select servers and a search term to begin.</p>
-          <div id="cross-table-wrapper" class="table-wrapper" hidden><table class="records-table cross-table"><caption class="sr-only">Cross-server matches with their source server, scope and record type</caption><thead><tr><th scope="col">Server</th><th scope="col">Scope</th><th scope="col">Record type</th><th scope="col">IP address</th><th scope="col">Name</th><th scope="col">Client ID</th><th scope="col">State / type</th></tr></thead><tbody id="cross-rows"></tbody></table></div>
-          <div id="cross-pager" class="pager" hidden><button id="cross-prev" type="button" class="secondary">Previous</button><span id="cross-page-status" role="status"></span><button id="cross-next" type="button" class="secondary">Next</button></div>
-        </div>
-      </details>
-
-<details id="health-panel" class="card capacity-panel"><summary>Server health</summary><p class="hint">Read-only DHCP management API response, version and server counters. A successful response does not verify authorization, failover, database integrity or every client network path. Counters are snapshots, not rates.</p><p id="health-context" class="hint"></p><button type="button" id="health-load" class="secondary" disabled>Load server health</button><p id="health-status" role="status" aria-live="polite">Not loaded</p><ul id="health-errors" class="error" hidden></ul><div class="table-wrapper"><table><caption class="sr-only">Server health</caption><thead><tr><th scope="col">Setting / counter</th><th scope="col">Type / source</th><th scope="col">Values</th></tr></thead><tbody id="health-rows"></tbody></table></div></details>
-      <section class="scopes card" aria-labelledby="scopes-title" aria-busy="false" id="scope-panel">
+      <p class="sidebar-foot">IPSherpa 0.7.0 · Read-only</p>
+    </aside>
+    <main id="workspace">
+      <header class="workspace-header">
+        <button id="navigation-toggle" type="button" class="secondary" aria-controls="sidebar" aria-expanded="false">☰ Menu</button>
+        <div><p class="eyebrow" id="screen-label">SERVER OVERVIEW</p><p id="navigation-context">No server connected</p></div>
+        <button id="back-to-search" type="button" class="secondary" hidden>Back to search</button>
+      </header>
+      <div id="workspace-content">
+        <section id="screen-server" aria-label="Server overview">
+          <div class="server-tabs" role="tablist" aria-label="Server views"><button id="server-tab-scopes" class="server-tab" role="tab" aria-selected="true" aria-controls="server-scopes" type="button">Scopes</button><button id="server-tab-health" class="server-tab" role="tab" aria-selected="false" aria-controls="server-health" tabindex="-1" type="button">Health</button></div>
+          <div id="server-scopes" role="tabpanel" aria-labelledby="server-tab-scopes">      <section class="scopes card" aria-labelledby="scopes-title" aria-busy="false" id="scope-panel">
         <div class="section-heading scope-heading">
           <div><h2 id="scopes-title">IPv4 scopes <span id="scope-count" class="count">—</span></h2><p id="scope-context" class="hint">No server queried</p></div>
           <button type="button" id="refresh" class="secondary" disabled>Refresh</button>
@@ -77,15 +62,24 @@
         <div id="table-wrapper" class="table-wrapper" hidden>
           <table><caption class="sr-only">IPv4 scopes and configured ranges returned by the selected DHCP server</caption><thead><tr><th scope="col">Scope ID</th><th scope="col">Name</th><th scope="col">Configured ranges</th><th scope="col">State</th></tr></thead><tbody id="scope-rows"></tbody></table>
         </div>
-      </section>
-      <section id="records-panel" class="card records" aria-labelledby="records-title" hidden>
+      </section></div>
+          <div id="server-health" role="tabpanel" aria-labelledby="server-tab-health" hidden><section id="health-panel" class="card capacity-panel"><h2 class="view-heading">Server health</h2><p class="hint">Read-only DHCP management API response, version and server counters. A successful response does not verify authorization, failover, database integrity or every client network path. Counters are snapshots, not rates.</p><p id="health-context" class="hint"></p><button type="button" id="health-load" class="secondary" disabled>Load server health</button><p id="health-status" role="status" aria-live="polite">Not loaded</p><ul id="health-errors" class="error" hidden></ul><div class="table-wrapper"><table><caption class="sr-only">Server health</caption><thead><tr><th scope="col">Setting / counter</th><th scope="col">Type / source</th><th scope="col">Values</th></tr></thead><tbody id="health-rows"></tbody></table></div></section></div>
+        </section>
+        <section id="screen-scope" aria-label="Selected scope" hidden>      <section id="records-panel" class="card records" aria-labelledby="records-title" hidden>
         <div class="section-heading scope-heading">
           <div><p class="eyebrow">SELECTED SCOPE</p><h2 id="records-title">Scope records</h2><p id="records-context" class="hint"></p></div>
           <button id="records-refresh" type="button" class="secondary">Refresh records</button>
         </div>
-<details id="options-panel" class="card capacity-panel"><summary>Scope options</summary><p class="hint">Explicit standard options at this scope only. Inherited server options, vendor/user classes, reservation overrides and policy options are not included. Empty results do not mean clients receive no options.</p><p id="options-context" class="hint"></p><button type="button" id="options-load" class="secondary" disabled>Load scope options</button><p id="options-status" role="status" aria-live="polite">Not loaded</p><ul id="options-errors" class="error" hidden></ul><div class="table-wrapper"><table><caption class="sr-only">Scope options</caption><thead><tr><th scope="col">Setting / counter</th><th scope="col">Type / source</th><th scope="col">Values</th></tr></thead><tbody id="options-rows"></tbody></table></div></details>
-        <details id="capacity-panel" class="capacity-panel">
-          <summary>Utilization &amp; exclusions</summary>
+
+
+        <div class="tabs" role="tablist" aria-label="Scope views">
+          <button id="tab-overview" class="scope-tab" type="button" role="tab" aria-selected="true" aria-controls="scope-overview">Overview</button>
+          <button id="tab-leases" class="tab scope-tab" type="button" role="tab" aria-selected="false" aria-controls="records-results" tabindex="-1">Leases</button>
+          <button id="tab-reservations" class="tab scope-tab" type="button" role="tab" aria-selected="false" aria-controls="records-results" tabindex="-1">Reservations</button>
+          <button id="tab-options" class="scope-tab" type="button" role="tab" aria-selected="false" aria-controls="scope-options" tabindex="-1">Options</button>
+        </div>
+        <div id="scope-overview" role="tabpanel" aria-labelledby="tab-overview"><dl id="selected-scope-summary" class="scope-summary"></dl>        <section id="capacity-panel" class="capacity-panel">
+          <h2 class="view-heading">Utilization & exclusions</h2>
           <div class="capacity-heading"><p id="capacity-context" class="hint"></p><button id="capacity-refresh" type="button" class="secondary" disabled>Load overview</button></div>
           <div id="capacity-results" aria-busy="false">
             <div id="capacity-status" class="status" role="status" aria-live="polite">Overview not loaded</div>
@@ -101,11 +95,8 @@
             <div id="exclusion-table-wrapper" class="table-wrapper" hidden><table class="exclusions-table"><caption class="sr-only">Excluded address ranges for the selected server and scope</caption><thead><tr><th scope="col">Start address</th><th scope="col">End address</th><th scope="col">Range size</th></tr></thead><tbody id="exclusion-rows"></tbody></table></div>
             <p class="hint record-hint">Overview values and record tables refresh separately.</p>
           </div>
-        </details>
-        <div class="tabs" role="tablist" aria-label="Scope record type">
-          <button id="tab-leases" class="tab" type="button" role="tab" aria-selected="true" aria-controls="records-results">Leases</button>
-          <button id="tab-reservations" class="tab" type="button" role="tab" aria-selected="false" aria-controls="records-results" tabindex="-1">Reservations</button>
-        </div>
+        </section></div>
+        <div id="scope-options" role="tabpanel" aria-labelledby="tab-options" hidden><section id="options-panel" class="card capacity-panel"><h2 class="view-heading">Scope options</h2><p class="hint">Explicit standard options at this scope only. Inherited server options, vendor/user classes, reservation overrides and policy options are not included. Empty results do not mean clients receive no options.</p><p id="options-context" class="hint"></p><button type="button" id="options-load" class="secondary" disabled>Load scope options</button><p id="options-status" role="status" aria-live="polite">Not loaded</p><ul id="options-errors" class="error" hidden></ul><div class="table-wrapper"><table><caption class="sr-only">Scope options</caption><thead><tr><th scope="col">Setting / counter</th><th scope="col">Type / source</th><th scope="col">Values</th></tr></thead><tbody id="options-rows"></tbody></table></div></section></div>
         <div id="records-results" role="tabpanel" aria-labelledby="tab-leases" aria-busy="false">
           <div class="filters">
             <div class="search-control"><label for="records-search">Search records</label><input id="records-search" type="search" placeholder="IP, hostname or client ID" autocomplete="off" spellcheck="false" aria-describedby="filter-help" disabled></div>
@@ -125,8 +116,30 @@
           <div id="records-pager" class="pager" hidden><button id="records-prev" type="button" class="secondary">Previous</button><span id="records-page-status" role="status"></span><button id="records-next" type="button" class="secondary">Next</button></div>
           <p id="lease-time-hint" class="hint record-hint">Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
         </div>
-      </section>
-      <footer><span>IPSherpa 0.6.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
+      </section><p id="no-scope" class="empty">Choose a scope from Server overview.</p></section>
+        <section id="screen-search" aria-label="Search across servers" hidden>      <section id="cross-panel" class="card cross-panel">
+        <h2 class="view-heading">Search across servers</h2>
+        <form id="cross-form">
+          <fieldset><legend>Search targets</legend><div id="cross-targets" class="target-list"></div><p class="hint">Saved servers plus the currently connected server. Check only the servers you want to query.</p></fieldset>
+          <div class="cross-controls">
+            <div class="search-control"><label for="cross-query">Search term</label><input id="cross-query" type="search" required placeholder="IP, hostname or client ID" autocomplete="off" spellcheck="false"></div>
+            <div><label for="cross-field">Search in</label><select id="cross-field"><option value="all">All search fields</option><option value="ip">IP address</option><option value="name">Hostname / name</option><option value="clientId">Client ID / MAC</option></select></div>
+            <div><label for="cross-kind">Record types</label><select id="cross-kind"><option value="both">Leases and reservations</option><option value="leases">Leases</option><option value="reservations">Reservations</option></select></div>
+            <button id="cross-search" type="submit">Search servers</button>
+            <button id="cross-stop" type="button" class="secondary" disabled>Stop after current query</button>
+          </div>
+          <p class="hint">Search queries every scope on the checked servers. Stop takes effect when the current Windows query returns.</p>
+        </form>
+        <div id="cross-results" aria-busy="false">
+          <p id="cross-context" class="hint cross-context"></p>
+          <div id="cross-status" class="status" role="status" aria-live="polite">Ready to search</div>
+          <div id="cross-issue-panel" class="error" hidden><strong>Queries needing attention</strong><ul id="cross-issues"></ul></div>
+          <p id="cross-empty" class="empty">Select servers and a search term to begin.</p>
+          <div id="cross-table-wrapper" class="table-wrapper" hidden><table class="records-table cross-table"><caption class="sr-only">Cross-server matches with their source server, scope and record type</caption><thead><tr><th scope="col">Server</th><th scope="col">Scope</th><th scope="col">Record type</th><th scope="col">IP address</th><th scope="col">Name</th><th scope="col">Client ID</th><th scope="col">State / type</th></tr></thead><tbody id="cross-rows"></tbody></table></div>
+          <div id="cross-pager" class="pager" hidden><button id="cross-prev" type="button" class="secondary">Previous</button><span id="cross-page-status" role="status"></span><button id="cross-next" type="button" class="secondary">Next</button></div>
+        </div>
+      </section></section>
+      </div>
     </main>
   </div>
 </body>

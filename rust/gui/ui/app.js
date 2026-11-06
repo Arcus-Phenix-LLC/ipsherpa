@@ -21,6 +21,7 @@ let activeTab = "leases";
 let recordData = [];
 let recordPage = 0;
 let recordsLoaded = false;
+let recordCache = {};
 const blankFilter = () => ({ query: "", field: "all", state: "" });
 let filters = { leases: blankFilter(), reservations: blankFilter() };
 const pageSize = 100;
@@ -97,9 +98,12 @@ function setBusy(value) {
   window.MultiServer?.setBusy(value);
   window.ScopeCapacity?.setBusy(value);
   window.InspectionViews?.setBusy(value);
+  window.Navigation?.setBusy(value);
 }
 
 function clearSelection() {
+  recordCache = {};
+  window.Navigation?.cleared();
   window.ScopeCapacity?.reset();
   window.InspectionViews?.scope(null);
   selectedScope = null;
@@ -148,11 +152,28 @@ function renderRecordsPage() {
   updatePaging();
 }
 
-async function queryRecords() {
+async function queryRecords(refresh = false) {
   if (busy || !selectedScope || !connectedServer) return;
   const server = connectedServer;
   const scopeId = selectedScope.scopeId;
   const kind = activeTab;
+  window.Navigation?.recordsChanged();
+  document.querySelector("#records-context").textContent = `${server} · ${scopeId}`;
+  document.querySelector("#records-results").setAttribute("aria-labelledby", `tab-${kind}`);
+  document.querySelector("#records-caption").textContent = `${kind} for scope ${scopeId} on ${server}`;
+  document.querySelector("#lease-time-hint").hidden = kind !== "leases";
+  const headings = kind === "leases" ? ["IP address", "Hostname", "Client ID", "State", "Lease expires", "Description"]
+    : ["IP address", "Name", "Client ID", "Client type", "Options", "Description"];
+  document.querySelector("#records-columns").replaceChildren(...headings.map(label => {
+    const th = document.createElement("th"); th.scope = "col"; th.textContent = label; return th;
+  }));
+  if (!refresh && recordCache[kind]) {
+    const cached = recordCache[kind]; recordData = cached.records; recordPage = cached.page;
+    recordsLoaded = true; recordError.hidden = true; recordSlow.hidden = true;
+    recordStatus.dataset.state = "success"; recordStatus.textContent = cached.status;
+    syncFilters(); renderRecordsPage(); return;
+  }
+  delete recordCache[kind];
   setBusy(true);
   recordsLoaded = false;
   recordData = [];
@@ -167,15 +188,6 @@ async function queryRecords() {
   recordStatus.textContent = `Loading ${kind}…`;
   document.querySelector("#records-results").setAttribute("aria-busy", "true");
   emptyRecords(`Loading ${kind}`, "Waiting for the DHCP server to respond.");
-  document.querySelector("#records-context").textContent = `${server} · ${scopeId}`;
-  document.querySelector("#records-results").setAttribute("aria-labelledby", `tab-${kind}`);
-  document.querySelector("#records-caption").textContent = `${kind} for scope ${scopeId} on ${server}`;
-  document.querySelector("#lease-time-hint").hidden = kind !== "leases";
-  const headings = kind === "leases" ? ["IP address", "Hostname", "Client ID", "State", "Lease expires", "Description"]
-    : ["IP address", "Name", "Client ID", "Client type", "Options", "Description"];
-  document.querySelector("#records-columns").replaceChildren(...headings.map(label => {
-    const th = document.createElement("th"); th.scope = "col"; th.textContent = label; return th;
-  }));
   const timer = setTimeout(() => { recordSlow.hidden = false; }, 12000);
   try {
     const result = await window.__TAURI__.core.invoke("list_records", { server, scopeId, kind });
@@ -189,6 +201,7 @@ async function queryRecords() {
     recordStatus.dataset.state = "success";
     const noun = kind === "leases" ? "lease" : "reservation";
     recordStatus.textContent = `${recordData.length} ${noun}${recordData.length === 1 ? "" : "s"} returned · Updated ${new Date().toLocaleTimeString()}`;
+    recordCache[kind] = {records:recordData, page:0, status:recordStatus.textContent};
   } catch (error) {
     recordsLoaded = false;
     recordData = [];
@@ -208,13 +221,21 @@ async function queryRecords() {
   }
 }
 
-function selectScope(scope, kind = "leases") {
+function selectScope(scope, kind = null) {
   if (busy) return;
+  if (selectedScope?.scopeId === scope.scopeId) {
+    window.Navigation?.selected(scope, kind);
+    if (kind) { activeTab = kind; updateTabs(); return queryRecords(false); }
+    return;
+  }
+  recordCache = {};
+  recordsLoaded = false; recordData = []; recordPage = 0;
   selectedScope = scope;
   window.ScopeCapacity?.selectionChanged(connectedServer, scope);
   window.InspectionViews?.scope(scope.scopeId);
   filters = { leases: blankFilter(), reservations: blankFilter() };
-  activeTab = kind;
+  activeTab = kind || "leases";
+  document.querySelector("#records-context").textContent = `${connectedServer} · ${scope.scopeId}`;
   recordPanel.hidden = false;
   document.querySelector("#records-title").textContent = scope.name || `Scope ${scope.scopeId}`;
   document.querySelectorAll(".scope-row").forEach(row => {
@@ -223,8 +244,8 @@ function selectScope(scope, kind = "leases") {
     row.querySelector(".scope-select").setAttribute("aria-pressed", String(selected));
   });
   updateTabs();
-  recordPanel.scrollIntoView({ block: "start" });
-  return queryRecords();
+  window.Navigation?.selected(scope, kind);
+  if (kind) return queryRecords(false);
 }
 
 function updateTabs() {
@@ -236,19 +257,14 @@ function updateTabs() {
 }
 
 tabButtons.forEach(button => button.addEventListener("click", () => {
-  if (busy || button.id === `tab-${activeTab}`) return;
+  if (busy) return;
+  if (button.id === `tab-${activeTab}`) { if (!recordsLoaded) queryRecords(false); return; }
+  if (recordsLoaded && recordCache[activeTab]) recordCache[activeTab].page = recordPage;
   activeTab = button.id.replace("tab-", "");
   updateTabs();
-  queryRecords();
+  queryRecords(false);
 }));
-document.querySelector(".tabs").addEventListener("keydown", event => {
-  if (busy || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-  event.preventDefault();
-  const index = tabButtons.indexOf(document.activeElement);
-  const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : (index + 1) % 2;
-  tabButtons[next].focus(); tabButtons[next].click();
-});
-recordRefresh.addEventListener("click", queryRecords);
+recordRefresh.addEventListener("click", () => queryRecords(true));
 document.querySelector("#records-prev").addEventListener("click", () => { if (!busy && recordPage > 0) { recordPage--; renderRecordsPage(); } });
 document.querySelector("#records-next").addEventListener("click", () => { if (!busy && (recordPage + 1) * pageSize < filteredRecords().length) { recordPage++; renderRecordsPage(); } });
 
@@ -297,6 +313,7 @@ async function queryScopes(server) {
   try {
     const result = await window.__TAURI__.core.invoke("list_scopes", { server });
     connectedServer = result.server;
+    window.Navigation?.connected();
     window.InspectionViews?.server(result.server);
     loadedScopes = result.scopes;
     serverInput.value = result.server;

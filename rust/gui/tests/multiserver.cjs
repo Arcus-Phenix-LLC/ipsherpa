@@ -1,3 +1,4 @@
+const {navigate,openMenu}=require('./navigation-helpers.cjs');
 // All servers, scopes and records are synthetic. No network queries are issued.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -39,7 +40,7 @@ const { pathToFileURL } = require('node:url');
     assert.equal(await page.evaluate(() => window.calls.length), 0);
     await page.locator('#connect').click();
     await page.waitForFunction(() => !document.querySelector('#connect').disabled);
-    await page.locator('#cross-panel summary').click();
+    await navigate(page,'search');
     await page.locator('#cross-query').fill('printer');
     await page.locator('#cross-search').click();
     await page.waitForFunction(() => document.querySelector('#cross-status').textContent.startsWith('Search complete'));
@@ -53,6 +54,7 @@ const { pathToFileURL } = require('node:url');
     assert.match(await page.locator('#records-context').textContent(), /EXAMPLE-B · 192\.0\.2\.0/);
     assert.equal(await page.locator('#tab-reservations').getAttribute('aria-selected'), 'true');
 
+    await page.locator('#back-to-search').click();
     await page.locator('#server').fill('EXAMPLE-DOWN');
     await page.locator('#save-server').click();
     await page.locator('#cross-search').click();
@@ -91,6 +93,7 @@ const { pathToFileURL } = require('node:url');
     assert.equal(await page.evaluate(() => window.calls.length), calls);
     await page.setViewportSize({ width: 620, height: 560 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    await openMenu(page);
     await page.locator('#server-profile').selectOption('EXAMPLE-DOWN');
     await page.locator('#remove-server').click();
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ipsherpa.serverProfiles.v1')).includes('EXAMPLE-DOWN')), false);

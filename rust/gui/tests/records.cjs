@@ -1,3 +1,4 @@
+const {navigate,openMenu}=require('./navigation-helpers.cjs');
 // Synthetic IPC fixtures only. No live DHCP data or diagnostic logs belong here.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -39,6 +40,7 @@ const { pathToFileURL } = require('node:url');
     await scope.waitFor();
     await scope.focus();
     await page.keyboard.press('Enter');
+    await page.locator('#tab-leases').click();
     await page.waitForFunction(() => document.querySelector('#records-status').textContent.includes('201 leases'));
     assert.equal(await page.locator('#records-rows tr').count(), 100);
     assert.equal(await page.locator('#records-rows td:nth-child(2)').first().textContent(), 'Printer 東京');
@@ -70,7 +72,9 @@ const { pathToFileURL } = require('node:url');
     assert.deepEqual(await page.evaluate(() => window.recordCalls.at(-1)), { server: 'EXAMPLE-DHCP', scopeId: '192.0.2.0', kind: 'reservations' });
 
     await page.evaluate(() => window.recordMode = 'pending');
+    await navigate(page,'server');
     await page.getByRole('button', { name: 'Browse scope 198.51.100.0', exact: true }).click();
+    await page.locator('#tab-leases').click();
     assert.equal(await page.locator('#records-results').getAttribute('aria-busy'), 'true');
     for (const selector of ['#connect', '#refresh', '#tab-reservations', '#records-refresh']) {
       assert.equal(await page.locator(selector).isDisabled(), true);
@@ -98,6 +102,7 @@ const { pathToFileURL } = require('node:url');
     await page.setViewportSize({ width: 620, height: 560 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     assert.equal(await page.locator('#records-table-wrapper').evaluate(el => el.scrollWidth > el.clientWidth), true);
+    await navigate(page,'server');
     await page.locator('#refresh').click();
     await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
     assert.equal(await page.locator('#records-panel').isHidden(), true);

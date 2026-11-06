@@ -1,3 +1,4 @@
+const {navigate,openMenu}=require('./navigation-helpers.cjs');
 // Synthetic responses only; no live DHCP calls.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -31,7 +32,7 @@ const path = require('node:path');
   await page.locator('.scope-row').first().click();
   await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
   assert.equal(await page.evaluate(()=>window.calls.includes('scope_capacity')),false);
-  await page.locator('#capacity-panel summary').click();
+  await page.locator('#tab-overview').click();
   const load=async(mode)=>{await page.evaluate(mode=>window.mode=mode,mode);await page.locator('#capacity-refresh').click();await page.waitForFunction(()=>!document.querySelector('#capacity-refresh').disabled);};
   await load('ok');
   assert.equal(await page.locator('#capacity-percent').textContent(),'0.0%');

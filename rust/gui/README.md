@@ -287,3 +287,27 @@ EXAMPLE-DHCP`. Test an empty scope-option list and an unavailable server.
 API version is the DHCP management API version, not the Windows product build.
 Synthetic tests do not establish live-server parity. No runtime logs or real
 server diagnostics are included in the repository.
+
+## Workspace navigation (0.7.0)
+
+The sidebar contains saved servers, connection controls and navigation to Server
+overview, Selected scope and Search across servers. Server overview separates
+Scopes and Health. Selecting a scope opens Overview; Leases, Reservations and
+Options each have their own tab. Overview combines configured allocation ranges,
+utilization and exclusions. Queries remain read-only and load on demand.
+
+Switching views keeps loaded snapshots, record filters and record pagination.
+Successful lease/reservation snapshots are cached only for the selected scope
+and current connection. Switching record tabs reuses that snapshot; use Refresh
+records to query again. Selecting a different scope or querying the server again
+clears the selected scope's snapshots. Loaded timestamps remain visible.
+
+Cross-server search has its own screen. Opening a result goes to its source
+scope and record tab; Back to search restores the existing search results.
+The current server/scope header stays visible while active content scrolls.
+Narrow windows use the Menu button; Escape closes the navigation menu.
+Tabs support arrow keys, Home and End. Navigation itself does not query DHCP.
+
+Browser regression checks cover view switching, record-cache reuse, filters,
+pagination, source context, search return, keyboard navigation, loading/errors,
+and narrow layout. All fixtures are synthetic; no runtime logs are committed.

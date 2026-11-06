@@ -1,3 +1,4 @@
+const {navigate,openMenu}=require('./navigation-helpers.cjs');
 // Synthetic browser fixtures; no actual network or diagnostic data is used.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -35,7 +36,9 @@ const { pathToFileURL } = require('node:url');
     await page.goto(pathToFileURL(path.join(__dirname, '../ui/index.html')).href);
     await page.locator('#server').fill('EXAMPLE-DHCP');
     await page.locator('#connect').click();
+    await navigate(page,'server');
     await page.getByRole('button', { name: 'Browse scope 192.0.2.0', exact: true }).click();
+    await page.locator('#tab-leases').click();
     await page.waitForFunction(() => !document.querySelector('#records-search').disabled);
     await page.locator('#records-next').click();
     await page.locator('#records-next').click();
@@ -60,7 +63,7 @@ const { pathToFileURL } = require('node:url');
     }
     assert.equal(await page.evaluate(() => window.calls.length), 1);
     assert.match(await page.locator('#records-context').textContent(), /EXAMPLE-DHCP · 192\.0\.2\.0/);
-    assert.equal(await page.getByRole('button', { name: 'Browse scope 192.0.2.0', exact: true }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#scope-rows .scope-select').first().getAttribute('aria-pressed'), 'true');
     await page.locator('#clear-filters').click();
     assert.equal(await page.locator('#records-search').inputValue(), '');
     assert.equal(await page.locator('#records-state').inputValue(), '');
@@ -90,7 +93,9 @@ const { pathToFileURL } = require('node:url');
     await page.waitForFunction(() => !document.querySelector('#records-search').disabled);
     assert.equal(await page.locator('#records-state').inputValue(), 'Declined');
     assert.equal(await page.locator('#filter-summary').textContent(), '0 of 205 leases shown');
+    await navigate(page,'server');
     await page.getByRole('button', { name: 'Browse scope 198.51.100.0', exact: true }).click();
+    await page.locator('#tab-leases').click();
     await page.waitForFunction(() => !document.querySelector('#records-search').disabled);
     assert.equal(await page.locator('#records-search').inputValue(), '');
     assert.equal(await page.locator('#records-state').inputValue(), '');
