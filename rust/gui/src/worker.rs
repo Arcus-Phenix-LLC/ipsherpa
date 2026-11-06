@@ -1,10 +1,10 @@
-use crate::{diagnostics, ScopeList, ScopeRow};
+use crate::{diagnostics, RecordList, RecordRow, ScopeList, ScopeRow};
 use std::{
     io::Write,
     process::{Command, Output},
 };
 
-pub fn child_main(mode: &str, server: &str) -> i32 {
+pub fn child_main(mode: &str, server: &str, scope: Option<&str>) -> i32 {
     #[cfg(windows)]
     {
         #[link(name = "kernel32")]
@@ -17,9 +17,28 @@ pub fn child_main(mode: &str, server: &str) -> i32 {
             SetErrorMode(0x0001 | 0x0002);
         }
     }
-    let result = (|| -> Result<ScopeList, String> {
+    let result = (|| -> Result<serde_json::Value, String> {
         ipsherpa::validate_server(server)?;
         eprintln!("worker {mode}: query begin");
+        if matches!(mode, "leases" | "reservations") {
+            let scope =
+                ipsherpa::validate_scope_id(scope.ok_or("A scope ID is required.")?)?.to_string();
+            let records = ipsherpa::list_records_for_worker(server, &scope, mode)?
+                .into_iter()
+                .map(RecordRow::from)
+                .collect();
+            eprintln!("worker {mode}: query complete");
+            return serde_json::to_value(RecordList {
+                server: server.into(),
+                scope_id: scope,
+                kind: mode.into(),
+                records,
+            })
+            .map_err(|error| error.to_string());
+        }
+        if scope.is_some() {
+            return Err("Unexpected scope argument.".into());
+        }
         let scopes = match mode {
             "details" => ipsherpa::list_scope_details_for_worker(server)?
                 .into_iter()
@@ -38,11 +57,12 @@ pub fn child_main(mode: &str, server: &str) -> i32 {
             _ => return Err("Unknown DHCP worker mode".into()),
         };
         eprintln!("worker {mode}: query complete");
-        Ok(ScopeList {
+        serde_json::to_value(ScopeList {
             server: server.to_owned(),
             scopes,
             notice: None,
         })
+        .map_err(|error| error.to_string())
     })();
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
@@ -56,6 +76,10 @@ pub fn child_main(mode: &str, server: &str) -> i32 {
 }
 
 fn decode(mode: &str, output: Output) -> Result<ScopeList, String> {
+    decode_typed(mode, output)
+}
+
+fn decode_typed<T: serde::de::DeserializeOwned>(mode: &str, output: Output) -> Result<T, String> {
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
         diagnostics::log(&format!("{mode} worker stages:\n{stderr}"));
@@ -68,23 +92,41 @@ fn decode(mode: &str, output: Output) -> Result<ScopeList, String> {
             .unwrap_or_else(|| output.status.to_string());
         return Err(format!("Native {mode} worker exited with {code}"));
     }
-    serde_json::from_slice::<Result<ScopeList, String>>(&output.stdout)
+    serde_json::from_slice::<Result<T, String>>(&output.stdout)
         .map_err(|error| format!("Invalid {mode} worker response: {error}"))?
 }
 
 fn run(mode: &str, server: &str) -> Result<ScopeList, String> {
+    decode(mode, run_output(mode, server, None)?)
+}
+
+fn run_output(mode: &str, server: &str, scope: Option<&str>) -> Result<Output, String> {
     diagnostics::log(&format!("Starting {mode} worker for {server}"));
     let mut command = Command::new(std::env::current_exe().map_err(|error| error.to_string())?);
     command.args(["--dhcp-worker", mode, server]);
+    if let Some(scope) = scope {
+        command.arg(scope);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
-    let output = command
+    command
         .output()
-        .map_err(|error| format!("Unable to start {mode} worker: {error}"))?;
-    decode(mode, output)
+        .map_err(|error| format!("Unable to start {mode} worker: {error}"))
+}
+
+pub fn records(server: &str, scope: &str, kind: &str) -> Result<RecordList, String> {
+    let result = decode_typed::<RecordList>(kind, run_output(kind, server, Some(scope))?);
+    match &result {
+        Ok(result) => diagnostics::log(&format!(
+            "{kind} query complete: {} records",
+            result.records.len()
+        )),
+        Err(error) => diagnostics::log(&format!("{kind} query failed: {error}")),
+    }
+    result.map_err(|error| format!("{error}. Diagnostic log: {}", diagnostics::path().display()))
 }
 
 fn with_fallback(
@@ -201,5 +243,39 @@ mod tests {
             stderr: vec![],
         };
         assert_eq!(decode("details", valid).unwrap().scopes.len(), 1);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn record_payload_round_trip_uses_frontend_field_names() {
+        use std::os::windows::process::ExitStatusExt;
+        let record = RecordRow::from(ipsherpa::ClientRecord {
+            address: std::net::Ipv4Addr::new(192, 0, 2, 10),
+            name: "Example".into(),
+            client_id: "01-02-03".into(),
+            description: String::new(),
+            client_type: "DHCP".into(),
+            state: Some("Active".into()),
+            expires_unix_seconds: Some(0),
+            expiry_label: None,
+            is_reservation: false,
+            options_present: None,
+        });
+        let payload = RecordList {
+            server: "EXAMPLE-DHCP".into(),
+            scope_id: "192.0.2.0".into(),
+            kind: "leases".into(),
+            records: vec![record],
+        };
+        let bytes = serde_json::to_vec(&Ok::<_, String>(payload)).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["Ok"]["records"][0]["expiresUnixSeconds"], 0);
+        assert_eq!(value["Ok"]["scopeId"], "192.0.2.0");
+        let output = Output {
+            status: std::process::ExitStatus::from_raw(0),
+            stdout: bytes,
+            stderr: vec![],
+        };
+        let result = decode_typed::<RecordList>("leases", output).unwrap();
+        assert_eq!(result.records[0].client_id, "01-02-03");
     }
 }

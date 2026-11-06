@@ -1,6 +1,6 @@
 {
   "identifier": "main",
-  "description": "Allow the bundled scope browser to run its single read-only query.",
+  "description": "Allow the bundled browser to list scopes, leases and reservations.",
   "windows": ["main"],
-  "permissions": ["allow-list-scopes"]
+  "permissions": ["allow-list-scopes","allow-list-records"]
 }

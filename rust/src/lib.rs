@@ -1,7 +1,9 @@
 use std::net::Ipv4Addr;
 
 mod details;
+mod records;
 pub use details::{list_scope_details_for_worker, AddressRange, ScopeDetails};
+pub use records::{list_records_for_worker, validate_scope_id, ClientRecord};
 
 fn scope_address(value: u32) -> Ipv4Addr {
     // DHCP_IP_ADDRESS is a host-order DWORD, not a network-order byte buffer.

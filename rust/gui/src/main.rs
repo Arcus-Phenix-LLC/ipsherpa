@@ -43,6 +43,47 @@ struct RangeRow {
     end: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordList {
+    server: String,
+    scope_id: String,
+    kind: String,
+    records: Vec<RecordRow>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordRow {
+    ip_address: String,
+    name: String,
+    client_id: String,
+    description: String,
+    client_type: String,
+    state: Option<String>,
+    expires_unix_seconds: Option<i64>,
+    expiry_label: Option<String>,
+    is_reservation: bool,
+    options_present: Option<bool>,
+}
+
+impl From<ipsherpa::ClientRecord> for RecordRow {
+    fn from(record: ipsherpa::ClientRecord) -> Self {
+        Self {
+            ip_address: record.address.to_string(),
+            name: record.name,
+            client_id: record.client_id,
+            description: record.description,
+            client_type: record.client_type,
+            state: record.state,
+            expires_unix_seconds: record.expires_unix_seconds,
+            expiry_label: record.expiry_label,
+            is_reservation: record.is_reservation,
+            options_present: record.options_present,
+        }
+    }
+}
+
 impl From<ipsherpa::ScopeDetails> for ScopeRow {
     fn from(scope: ipsherpa::ScopeDetails) -> Self {
         Self {
@@ -87,12 +128,41 @@ async fn list_scopes(
     .map_err(|error| format!("The scope query worker failed: {error}"))?
 }
 
+#[tauri::command]
+async fn list_records(
+    server: String,
+    scope_id: String,
+    kind: String,
+    state: tauri::State<'_, QueryState>,
+) -> Result<RecordList, String> {
+    let server = ipsherpa::validate_server(&server)?.to_owned();
+    let scope_id = ipsherpa::validate_scope_id(&scope_id)?.to_string();
+    if !matches!(kind.as_str(), "leases" | "reservations") {
+        return Err("Unknown record kind.".into());
+    }
+    if state
+        .0
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("Another query is running. Wait for it to finish.".into());
+    }
+    let guard = QueryGuard(Arc::clone(&state.0));
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        worker::records(&server, &scope_id, &kind)
+    })
+    .await
+    .map_err(|error| format!("The record query worker failed: {error}"))?
+}
+
 fn main() {
     diagnostics::init();
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|arg| arg == "--dhcp-worker") {
         let code = match args.as_slice() {
-            [_, mode, server] => worker::child_main(mode, server),
+            [_, mode, server] => worker::child_main(mode, server, None),
+            [_, mode, server, scope] => worker::child_main(mode, server, Some(scope)),
             _ => {
                 diagnostics::log("Invalid DHCP worker arguments");
                 2
@@ -102,7 +172,7 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(QueryState::default())
-        .invoke_handler(tauri::generate_handler![list_scopes])
+        .invoke_handler(tauri::generate_handler![list_scopes, list_records])
         .run(tauri::generate_context!())
         .expect("Failed to start IPSherpa. Check the WebView2 runtime installation.");
 }

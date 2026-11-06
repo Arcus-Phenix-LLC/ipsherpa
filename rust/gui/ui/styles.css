@@ -51,6 +51,23 @@ td:nth-child(3) { white-space: pre-line; min-width: 270px; }
 .scope-warning td { color: #86551c; background: #fff9ed; font: 12px/1.6 "Segoe UI", sans-serif; white-space: normal; overflow-wrap: anywhere; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: #f8faf9; }
+.scope-select { border: 0; padding: 0; background: transparent; color: #175a50; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
+.scope-select:hover:enabled { background: transparent; color: #0a4139; }
+.scope-row { cursor: pointer; }
+.scope-row.selected { background: #eaf4ee; box-shadow: inset 3px 0 #175a50; }
+.records { margin-top: 20px; scroll-margin-top: 20px; }
+.section-heading > div { min-width: 0; }
+#records-title, #records-context, #scope-context { overflow-wrap: anywhere; }
+.tabs { display: flex; gap: 20px; padding: 0 24px; border-bottom: 1px solid #dce5e2; }
+.tab { border: 0; border-radius: 0; padding: 12px 2px; color: #627773; background: transparent; border-bottom: 3px solid transparent; }
+.tab[aria-selected="true"] { color: #175a50; border-bottom-color: #175a50; }
+.tab:hover:enabled { background: #f4f8f5; }
+.records-table { min-width: 1040px; }
+.records-table td:nth-child(3) { min-width: 190px; white-space: normal; overflow-wrap: anywhere; }
+.records-table td:nth-child(4), .records-table td:nth-child(5) { min-width: 145px; }
+.records-table td:nth-child(6) { min-width: 200px; max-width: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.record-hint { padding: 0 24px 20px; }
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0 24px 16px; font-size: 12px; color: #53736d; }
 footer { display: flex; justify-content: space-between; gap: 12px; color: #71877e; font-size: 11px; margin-top: 19px; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

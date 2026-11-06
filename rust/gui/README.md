@@ -4,7 +4,42 @@ A Windows Tauri 2 GUI for the read-only Rust scope enumeration experiment.
 Enter `DHCP01` (or your server hostname/IP), select **Connect**, and use **Refresh**
 to query that same server again. Editing the server field requires Connect to
 switch targets. The table shows IPv4 scope IDs, names, configured allocation
-ranges, and state. Lease details and DHCP writes are not included.
+ranges, and state. Select a scope ID (or its row) to open **Leases** and
+**Reservations** tabs. All operations remain read-only.
+
+## Read-only record browsing (0.2.0)
+
+- Leases show IP, hostname, the complete client ID, server-reported state,
+  lease expiry in local time, and description. Reserved clients are marked.
+- Reservations show IP, name, full client ID, allowed client type, whether
+  reservation options are present, and description. No lease is required for a
+  configured reservation to appear.
+- **Refresh records** queries the selected scope and tab. It uses the connected
+  server even if the editable server field has been changed. Connect switches
+  servers; refreshing scopes clears selection and record results.
+- Native enumeration retrieves all pages. The UI renders 100 records per page
+  and pages locally without additional network queries. A later native-page
+  error is reported as an error; partial results are not presented as complete.
+- Empty, loading, denied/unsupported, worker failure and unexpected-response
+  states are distinct. No prior record results remain visible after a new query.
+- Lease expiry sentinels show **Never** or **Not set**. Native state labels may
+  differ from PowerShell's derived labels. Client IDs are not shortened to a
+  presumed six-byte MAC address.
+- Native APIs: `DhcpEnumSubnetClientsVQ` (Windows Server 2008 R2+) and
+  `DhcpV4EnumSubnetReservations` (Windows Server 2012+). Unsupported servers
+  return a visible error. These reads use the same process-lifetime buffers and
+  short-lived hidden workers as scope details, with no nested native frees.
+
+Compare a selected scope in the lab with the DHCP console and:
+
+```powershell
+Get-DhcpServerv4Lease -ComputerName EXAMPLE-DHCP -ScopeId 192.0.2.0 -AllLeases
+Get-DhcpServerv4Reservation -ComputerName EXAMPLE-DHCP -ScopeId 192.0.2.0
+```
+
+Replace the synthetic target and scope with your lab values. Compare counts,
+addresses, names, full client IDs and expiry; test empty results and a denied
+query. Reservation reads must include reservations without current leases.
 
 ## Build and launch
 
@@ -52,8 +87,8 @@ actual administration workstations before choosing runtime packaging.
 - A slow-query hint appears after 12 seconds. This is not a cancellation timeout:
   Windows RPC controls how long the underlying operation takes. A timeout or
   reliable cancellation mechanism remains future work.
-- The frontend is bundled locally. Its single permitted application command is
-  `list_scopes`, scoped to the main window. There are no shell/file/network
+- The frontend is bundled locally. Its permitted application commands are
+  `list_scopes` and `list_records`, scoped to the main window. There are no shell/file/network
   plugins, remote web content, or DHCP mutation commands. The Rust backend starts
   only its own executable in the internal `--dhcp-worker` mode, without a shell.
 - This GUI is Windows-focused. Tauri's cross-platform support does not make the
@@ -85,16 +120,18 @@ Optional browser regression tests use Playwright and an installed Chrome. From
 ```powershell
 npm install --prefix gui --no-save --package-lock=false playwright@1.64.1
 node gui/tests/browser.cjs
+node gui/tests/records.cjs
 ```
 
 These mock IPC to cover Unicode names, multiple/empty/unavailable ranges,
 partial errors, safe text rendering, loading controls, refresh targeting,
 invalid input and a narrow window. They do not establish native API parity.
 
-Local validation passed the Windows x64 release build, Clippy, formatting, and
-nine shared-library/CLI tests plus four GUI worker recovery tests. The initial GUI's startup and scope query were
-confirmed by the user on an RSAT-equipped machine. The new name/range/state
-queries still require lab comparison; a test success is not claimed for them.
+The scope-detail baseline was confirmed on an RSAT-equipped machine. Lease and
+reservation reads require a new lab comparison; mocked results and ABI fixtures
+do not establish live DHCP parity. Local checks cover the Windows release build,
+Clippy, formatting, native pointer-array copies, FILETIME conversion, pagination,
+worker payloads and browser interactions. Fixtures contain synthetic data only.
 
 ## Diagnosing the scope-detail crash
 

@@ -52,8 +52,8 @@ cover CLI input and address conversion; they do not establish live API parity.
 The FFI boundary uses C layout and the Windows system calling convention.
 Scope-ID pages and their element arrays are released with DhcpRpcFreeMemory.
 The CLI lists scope IDs. The GUI additionally reads names, configured ranges,
-and state through `list_scope_details_for_worker`. This API is single-use within
-a short-lived worker; native detail buffers are reclaimed by Windows at worker
-exit. Leases, reservations and writes are
-future work. An initial GUI query was confirmed on an RSAT-equipped machine;
-the additional detail queries require a separate lab comparison.
+and state through `list_scope_details_for_worker`. It also browses leases and
+reservations via `list_records_for_worker`. These APIs are single-use within
+short-lived workers; native buffers are reclaimed by Windows at worker exit.
+The scope-detail baseline was confirmed on an RSAT-equipped machine. New record
+reads need a separate lab comparison. DHCP writes remain future work.
