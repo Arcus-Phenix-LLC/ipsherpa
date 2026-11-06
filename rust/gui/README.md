@@ -41,6 +41,31 @@ Replace the synthetic target and scope with your lab values. Compare counts,
 addresses, names, full client IDs and expiry; test empty results and a denied
 query. Reservation reads must include reservations without current leases.
 
+## Search and filters (0.3.0)
+
+Use **Search records** to find an IP substring/prefix, hostname/name, or client
+ID. **Search in** restricts matching to one field. Matching is case-insensitive
+and handles Unicode names; client IDs can be entered with hyphens, colons,
+dots, spaces, or no separators, without shortening variable-length IDs.
+
+On Leases, **Lease state** combines with the text search. Options reflect the
+server-reported states in the snapshot; reserved-client badges do not change
+the underlying state. Reservations do not have a lease-state filter.
+
+Filtering covers every loaded record before 100-row table paging. It performs
+no additional DHCP query and preserves the connected server and selected scope.
+The summary shows matches versus total records. **No matching records** is
+distinct from a successful empty server response or a query error.
+
+Each tab retains its own filters in memory. Refresh records preserves them,
+including a selected state that is no longer present. Changing scope or
+refreshing the scope list resets both tabs' filters. **Clear filters** resets
+only the current tab. Search terms are neither saved nor sent to the backend.
+
+For a lab check, search for a known record from a later table page, combine a
+lease-state filter with its hostname, and try a client ID with alternate MAC
+separators. Confirm counts and that Clear filters restores the full snapshot.
+
 ## Build and launch
 
 Requirements: Windows, Rust 1.93.0, MSVC C++ Build Tools and Windows SDK, and the
@@ -121,6 +146,8 @@ Optional browser regression tests use Playwright and an installed Chrome. From
 npm install --prefix gui --no-save --package-lock=false playwright@1.64.1
 node gui/tests/browser.cjs
 node gui/tests/records.cjs
+node --test gui/tests/filters.cjs
+node gui/tests/search.cjs
 ```
 
 These mock IPC to cover Unicode names, multiple/empty/unavailable ranges,
@@ -128,7 +155,8 @@ partial errors, safe text rendering, loading controls, refresh targeting,
 invalid input and a narrow window. They do not establish native API parity.
 
 The scope-detail baseline was confirmed on an RSAT-equipped machine. Lease and
-reservation reads require a new lab comparison; mocked results and ABI fixtures
+reservation browsing was also confirmed in the lab; search/filter changes need
+a separate acceptance check; mocked results and ABI fixtures
 do not establish live DHCP parity. Local checks cover the Windows release build,
 Clippy, formatting, native pointer-array copies, FILETIME conversion, pagination,
 worker payloads and browser interactions. Fixtures contain synthetic data only.

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IPSherpa | Scope browser</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="filters.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -53,6 +54,14 @@
           <button id="tab-reservations" class="tab" type="button" role="tab" aria-selected="false" aria-controls="records-results" tabindex="-1">Reservations</button>
         </div>
         <div id="records-results" role="tabpanel" aria-labelledby="tab-leases" aria-busy="false">
+          <div class="filters">
+            <div class="search-control"><label for="records-search">Search records</label><input id="records-search" type="search" placeholder="IP, hostname or client ID" autocomplete="off" spellcheck="false" aria-describedby="filter-help" disabled></div>
+            <div><label for="records-search-field">Search in</label><select id="records-search-field" disabled><option value="all">All search fields</option><option value="ip">IP address</option><option value="name">Hostname / name</option><option value="clientId">Client ID / MAC</option></select></div>
+            <div id="lease-state-control"><label for="records-state">Lease state</label><select id="records-state" disabled><option value="">All states</option></select></div>
+            <button id="clear-filters" type="button" class="secondary" disabled>Clear filters</button>
+          </div>
+          <p id="filter-help" class="hint filter-help">Search all loaded records in this scope. Client IDs match with or without common MAC separators.</p>
+          <p id="filter-summary" class="hint filter-summary" role="status" aria-live="polite"></p>
           <div id="records-status" class="status" role="status" aria-live="polite"></div>
           <div id="records-error" class="error" role="alert" hidden></div>
           <p id="records-slow" class="hint slow-query" hidden>The server is taking longer to respond. The window remains responsive while Windows completes the query.</p>
@@ -64,7 +73,7 @@
           <p id="lease-time-hint" class="hint record-hint">Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
         </div>
       </section>
-      <footer><span>IPSherpa 0.2.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
+      <footer><span>IPSherpa 0.3.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
     </main>
   </div>
 </body>

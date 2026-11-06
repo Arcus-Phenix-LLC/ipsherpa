@@ -68,6 +68,14 @@ tbody tr:hover { background: #f8faf9; }
 .records-table td:nth-child(6) { min-width: 200px; max-width: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .record-hint { padding: 0 24px 20px; }
 .pager { display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0 24px 16px; font-size: 12px; color: #53736d; }
+.filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 20px 24px 0; }
+.filters > div { min-width: 140px; }
+.filters .search-control { flex: 1 1 230px; }
+.filters input, .filters select { width: 100%; min-height: 41px; }
+.filters select { font: inherit; font-size: 13px; color: #173237; background: #fcfdfc; border: 1px solid #bacdc7; border-radius: 7px; padding: 10px; }
+.filters select:focus-visible { outline: 3px solid #80b8aa; outline-offset: 3px; }
+.filter-help, .filter-summary { margin: 8px 24px; }
+.filter-summary { color: #315b52; }
 footer { display: flex; justify-content: space-between; gap: 12px; color: #71877e; font-size: 11px; margin-top: 19px; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

@@ -19,6 +19,9 @@ let selectedScope = null;
 let activeTab = "leases";
 let recordData = [];
 let recordPage = 0;
+let recordsLoaded = false;
+const blankFilter = () => ({ query: "", field: "all", state: "" });
+let filters = { leases: blankFilter(), reservations: blankFilter() };
 const pageSize = 100;
 const recordPanel = document.querySelector("#records-panel");
 const recordStatus = document.querySelector("#records-status");
@@ -29,13 +32,55 @@ const recordBody = document.querySelector("#records-rows");
 const recordRefresh = document.querySelector("#records-refresh");
 const recordSlow = document.querySelector("#records-slow");
 const tabButtons = [...document.querySelectorAll(".tab")];
+const searchInput = document.querySelector("#records-search");
+const searchField = document.querySelector("#records-search-field");
+const stateFilter = document.querySelector("#records-state");
+const clearFilters = document.querySelector("#clear-filters");
+
+function filteredRecords() {
+  return recordData.filter(record => RecordFilters.matches(record, filters[activeTab], activeTab));
+}
+
+function updateFilterControls() {
+  for (const control of [searchInput, searchField, stateFilter]) control.disabled = busy || !recordsLoaded;
+  const filter = filters[activeTab];
+  clearFilters.disabled = busy || !recordsLoaded || !(filter.query || filter.state || filter.field !== "all");
+}
+
+function syncFilters() {
+  const filter = filters[activeTab];
+  searchInput.value = filter.query;
+  searchField.value = filter.field;
+  document.querySelector("#lease-state-control").hidden = activeTab !== "leases";
+  stateFilter.replaceChildren(new Option("All states", ""));
+  const states = new Set(activeTab === "leases" ? recordData.map(record => record.state || "Unknown") : []);
+  if (filter.state) states.add(filter.state);
+  for (const state of [...states].sort()) stateFilter.append(new Option(state, state));
+  stateFilter.value = filter.state;
+  updateFilterControls();
+}
+
+function applyFilters() {
+  if (busy || !recordsLoaded) return;
+  recordPage = 0;
+  renderRecordsPage();
+  updateFilterControls();
+}
+
+searchInput.addEventListener("input", () => { filters[activeTab].query = searchInput.value; applyFilters(); });
+searchField.addEventListener("change", () => { filters[activeTab].field = searchField.value; applyFilters(); });
+stateFilter.addEventListener("change", () => { filters[activeTab].state = stateFilter.value; applyFilters(); });
+clearFilters.addEventListener("click", () => {
+  filters[activeTab] = blankFilter(); syncFilters(); applyFilters(); searchInput.focus();
+});
 
 function updatePaging() {
+  const length = filteredRecords().length;
   document.querySelector("#records-prev").disabled = busy || recordPage === 0;
-  document.querySelector("#records-next").disabled = busy || (recordPage + 1) * pageSize >= recordData.length;
-  document.querySelector("#records-pager").hidden = recordData.length <= pageSize;
-  document.querySelector("#records-page-status").textContent = recordData.length
-    ? `${recordPage * pageSize + 1}–${Math.min((recordPage + 1) * pageSize, recordData.length)} of ${recordData.length}` : "";
+  document.querySelector("#records-next").disabled = busy || (recordPage + 1) * pageSize >= length;
+  document.querySelector("#records-pager").hidden = length <= pageSize;
+  document.querySelector("#records-page-status").textContent = length
+    ? `${recordPage * pageSize + 1}–${Math.min((recordPage + 1) * pageSize, length)} of ${length}` : "";
 }
 
 function setBusy(value) {
@@ -46,12 +91,15 @@ function setBusy(value) {
   document.querySelectorAll(".scope-select").forEach(button => { button.disabled = value; });
   tabButtons.forEach(button => { button.disabled = value; });
   recordRefresh.disabled = value || selectedScope === null;
+  updateFilterControls();
   updatePaging();
 }
 
 function clearSelection() {
   selectedScope = null;
   recordData = [];
+  recordsLoaded = false;
+  filters = { leases: blankFilter(), reservations: blankFilter() };
   recordPage = 0;
   recordPanel.hidden = true;
   recordBody.replaceChildren();
@@ -72,8 +120,9 @@ function expiryText(record) {
 }
 
 function renderRecordsPage() {
+  const filtered = filteredRecords();
   const fragment = document.createDocumentFragment();
-  for (const record of recordData.slice(recordPage * pageSize, (recordPage + 1) * pageSize)) {
+  for (const record of filtered.slice(recordPage * pageSize, (recordPage + 1) * pageSize)) {
     const row = document.createElement("tr");
     const values = activeTab === "leases"
       ? [record.ipAddress, record.name || "(Unnamed)", record.clientId || "—", `${record.state || "Unknown"}${record.isReservation ? " · Reserved" : ""}`, expiryText(record), record.description || "—"]
@@ -86,6 +135,10 @@ function renderRecordsPage() {
     fragment.append(row);
   }
   recordBody.replaceChildren(fragment);
+  document.querySelector("#filter-summary").textContent = `${filtered.length} of ${recordData.length} ${activeTab} shown`;
+  if (filtered.length) { recordEmpty.hidden = true; recordTable.hidden = false; }
+  else if (recordData.length) emptyRecords(`No matching ${activeTab}`, "Change the search or lease state, or select Clear filters.");
+  else emptyRecords(`No ${activeTab} found`, "The server responded successfully with an empty result.");
   updatePaging();
 }
 
@@ -95,9 +148,12 @@ async function queryRecords() {
   const scopeId = selectedScope.scopeId;
   const kind = activeTab;
   setBusy(true);
+  recordsLoaded = false;
   recordData = [];
   recordPage = 0;
   recordBody.replaceChildren();
+  document.querySelector("#filter-summary").textContent = "";
+  syncFilters();
   updatePaging();
   recordError.hidden = true;
   recordSlow.hidden = true;
@@ -121,13 +177,18 @@ async function queryRecords() {
       throw new Error("The record response did not match the selected server and scope. Please retry.");
     }
     recordData = result.records;
+    recordsLoaded = true;
+    syncFilters();
     renderRecordsPage();
     recordStatus.dataset.state = "success";
     const noun = kind === "leases" ? "lease" : "reservation";
     recordStatus.textContent = `${recordData.length} ${noun}${recordData.length === 1 ? "" : "s"} returned · Updated ${new Date().toLocaleTimeString()}`;
-    if (recordData.length) { recordEmpty.hidden = true; recordTable.hidden = false; }
-    else emptyRecords(`No ${kind} found`, "The server responded successfully with an empty result.");
   } catch (error) {
+    recordsLoaded = false;
+    recordData = [];
+    recordBody.replaceChildren();
+    document.querySelector("#filter-summary").textContent = "";
+    updatePaging();
     recordStatus.dataset.state = "error";
     recordStatus.textContent = `${kind === "leases" ? "Lease" : "Reservation"} query failed`;
     recordError.textContent = typeof error === "string" ? error : String(error);
@@ -144,6 +205,7 @@ async function queryRecords() {
 function selectScope(scope) {
   if (busy) return;
   selectedScope = scope;
+  filters = { leases: blankFilter(), reservations: blankFilter() };
   activeTab = "leases";
   recordPanel.hidden = false;
   document.querySelector("#records-title").textContent = scope.name || `Scope ${scope.scopeId}`;
@@ -180,7 +242,7 @@ document.querySelector(".tabs").addEventListener("keydown", event => {
 });
 recordRefresh.addEventListener("click", queryRecords);
 document.querySelector("#records-prev").addEventListener("click", () => { if (!busy && recordPage > 0) { recordPage--; renderRecordsPage(); } });
-document.querySelector("#records-next").addEventListener("click", () => { if (!busy && (recordPage + 1) * pageSize < recordData.length) { recordPage++; renderRecordsPage(); } });
+document.querySelector("#records-next").addEventListener("click", () => { if (!busy && (recordPage + 1) * pageSize < filteredRecords().length) { recordPage++; renderRecordsPage(); } });
 
 function setEmpty(title, message) {
   empty.querySelector("h3").textContent = title;
