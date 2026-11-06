@@ -4,6 +4,7 @@ fn main() {
             "list_scopes",
             "list_records",
             "scope_capacity",
+            "inspect_dhcp",
         ]),
     ))
     .expect("Failed to build IPSherpa GUI resources");

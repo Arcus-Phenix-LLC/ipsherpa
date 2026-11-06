@@ -20,6 +20,16 @@ pub fn child_main(mode: &str, server: &str, scope: Option<&str>) -> i32 {
     let result = (|| -> Result<serde_json::Value, String> {
         ipsherpa::validate_server(server)?;
         eprintln!("worker {mode}: query begin");
+        if matches!(mode, "options" | "health") {
+            if mode == "options" && scope.is_none() {
+                return Err("A scope ID is required.".into());
+            }
+            if mode == "health" && scope.is_some() {
+                return Err("Health takes no scope.".into());
+            }
+            return serde_json::to_value(crate::inspection::query(server, scope)?)
+                .map_err(|e| e.to_string());
+        }
         if mode == "capacity" {
             let scope =
                 ipsherpa::validate_scope_id(scope.ok_or("A scope ID is required.")?)?.to_string();
@@ -184,6 +194,14 @@ pub fn query(server: &str) -> Result<ScopeList, String> {
         Err(error) => diagnostics::log(&format!("Query failed: {error}")),
     }
     result
+}
+
+pub fn inspection(
+    server: &str,
+    scope: Option<&str>,
+) -> Result<crate::inspection::Inspection, String> {
+    let mode = if scope.is_some() { "options" } else { "health" };
+    decode_typed(mode, run_output(mode, server, scope)?)
 }
 
 #[cfg(test)]

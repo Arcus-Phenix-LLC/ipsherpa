@@ -9,6 +9,7 @@
   <script src="fleet.js" defer></script>
   <script src="app.js" defer></script>
   <script src="capacity.js" defer></script>
+  <script src="inspection.js" defer></script>
   <script src="multiserver.js" defer></script>
 </head>
 <body>
@@ -63,6 +64,7 @@
         </div>
       </details>
 
+<details id="health-panel" class="card capacity-panel"><summary>Server health</summary><p class="hint">Read-only DHCP management API response, version and server counters. A successful response does not verify authorization, failover, database integrity or every client network path. Counters are snapshots, not rates.</p><p id="health-context" class="hint"></p><button type="button" id="health-load" class="secondary" disabled>Load server health</button><p id="health-status" role="status" aria-live="polite">Not loaded</p><ul id="health-errors" class="error" hidden></ul><div class="table-wrapper"><table><caption class="sr-only">Server health</caption><thead><tr><th scope="col">Setting / counter</th><th scope="col">Type / source</th><th scope="col">Values</th></tr></thead><tbody id="health-rows"></tbody></table></div></details>
       <section class="scopes card" aria-labelledby="scopes-title" aria-busy="false" id="scope-panel">
         <div class="section-heading scope-heading">
           <div><h2 id="scopes-title">IPv4 scopes <span id="scope-count" class="count">—</span></h2><p id="scope-context" class="hint">No server queried</p></div>
@@ -81,6 +83,7 @@
           <div><p class="eyebrow">SELECTED SCOPE</p><h2 id="records-title">Scope records</h2><p id="records-context" class="hint"></p></div>
           <button id="records-refresh" type="button" class="secondary">Refresh records</button>
         </div>
+<details id="options-panel" class="card capacity-panel"><summary>Scope options</summary><p class="hint">Explicit standard options at this scope only. Inherited server options, vendor/user classes, reservation overrides and policy options are not included. Empty results do not mean clients receive no options.</p><p id="options-context" class="hint"></p><button type="button" id="options-load" class="secondary" disabled>Load scope options</button><p id="options-status" role="status" aria-live="polite">Not loaded</p><ul id="options-errors" class="error" hidden></ul><div class="table-wrapper"><table><caption class="sr-only">Scope options</caption><thead><tr><th scope="col">Setting / counter</th><th scope="col">Type / source</th><th scope="col">Values</th></tr></thead><tbody id="options-rows"></tbody></table></div></details>
         <details id="capacity-panel" class="capacity-panel">
           <summary>Utilization &amp; exclusions</summary>
           <div class="capacity-heading"><p id="capacity-context" class="hint"></p><button id="capacity-refresh" type="button" class="secondary" disabled>Load overview</button></div>
@@ -123,7 +126,7 @@
           <p id="lease-time-hint" class="hint record-hint">Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
         </div>
       </section>
-      <footer><span>IPSherpa 0.5.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
+      <footer><span>IPSherpa 0.6.0 · Read-only</span><span>Diagnostic log: %LOCALAPPDATA%\IPSherpa\logs\ipsherpa.log</span></footer>
     </main>
   </div>
 </body>

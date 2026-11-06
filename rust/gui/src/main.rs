@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diagnostics;
+mod inspection;
 mod worker;
 
 use std::sync::{
@@ -240,6 +241,32 @@ async fn scope_capacity(
     .map_err(|error| format!("Capacity worker failed: {error}"))?
 }
 
+#[tauri::command]
+async fn inspect_dhcp(
+    server: String,
+    scope_id: Option<String>,
+    state: tauri::State<'_, QueryState>,
+) -> Result<inspection::Inspection, String> {
+    let server = ipsherpa::validate_server(&server)?.to_owned();
+    let scope = scope_id
+        .map(|s| ipsherpa::validate_scope_id(&s).map(|id| id.to_string()))
+        .transpose()?;
+    if state
+        .0
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("Another query is running.".into());
+    }
+    let guard = QueryGuard(Arc::clone(&state.0));
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        worker::inspection(&server, scope.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn main() {
     diagnostics::init();
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -259,7 +286,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_scopes,
             list_records,
-            scope_capacity
+            scope_capacity,
+            inspect_dhcp
         ])
         .run(tauri::generate_context!())
         .expect("Failed to start IPSherpa. Check the WebView2 runtime installation.");

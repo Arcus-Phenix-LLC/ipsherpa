@@ -96,10 +96,12 @@ function setBusy(value) {
   updatePaging();
   window.MultiServer?.setBusy(value);
   window.ScopeCapacity?.setBusy(value);
+  window.InspectionViews?.setBusy(value);
 }
 
 function clearSelection() {
   window.ScopeCapacity?.reset();
+  window.InspectionViews?.scope(null);
   selectedScope = null;
   recordData = [];
   recordsLoaded = false;
@@ -210,6 +212,7 @@ function selectScope(scope, kind = "leases") {
   if (busy) return;
   selectedScope = scope;
   window.ScopeCapacity?.selectionChanged(connectedServer, scope);
+  window.InspectionViews?.scope(scope.scopeId);
   filters = { leases: blankFilter(), reservations: blankFilter() };
   activeTab = kind;
   recordPanel.hidden = false;
@@ -273,6 +276,7 @@ async function queryScopes(server) {
 
   busy = true;
   connectedServer = null;
+  window.InspectionViews?.server(null);
   loadedScopes = [];
   clearSelection();
   setBusy(true);
@@ -293,6 +297,7 @@ async function queryScopes(server) {
   try {
     const result = await window.__TAURI__.core.invoke("list_scopes", { server });
     connectedServer = result.server;
+    window.InspectionViews?.server(result.server);
     loadedScopes = result.scopes;
     serverInput.value = result.server;
     const fragment = document.createDocumentFragment();

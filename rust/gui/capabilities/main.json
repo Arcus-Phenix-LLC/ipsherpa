@@ -2,5 +2,5 @@
   "identifier": "main",
   "description": "Allow the bundled browser to list scopes, leases and reservations.",
   "windows": ["main"],
-  "permissions": ["allow-list-scopes","allow-list-records", "allow-scope-capacity"]
+  "permissions": ["allow-list-scopes","allow-list-records", "allow-scope-capacity", "allow-inspect-dhcp"]
 }

@@ -259,3 +259,31 @@ Get-DhcpServerv4ExclusionRange -ComputerName EXAMPLE-DHCP -ScopeId 192.0.2.0
 Browser tests mock responses and do not establish live Windows DHCP parity.
 Runtime logs, saved profiles, and environment-specific diagnostics are excluded
 from repository content.
+
+## Scope options and server health (0.6.0)
+
+After connecting, expand **Server health** and choose **Load server health**.
+This reads DhcpGetVersion and DhcpGetMibInfoV5 independently: management API
+response/version, packet counters, reported scope count, and aggregate scope
+in-use/free/pending counts. Partial failures retain available values. These
+snapshots are not packet rates or an assurance of authorization, database
+integrity, failover state, service uptime, or client-path connectivity.
+
+Select a scope, expand **Scope options**, then choose **Load scope options**.
+DhcpEnumOptionValues enumerates explicitly configured standard scope options.
+Each row shows the numeric option ID, native type and values. IPv4 addresses,
+strings, integer types, IPv6 strings and binary/encapsulated hex values are
+preserved. Unknown native types are labeled unsupported. Server inheritance,
+reservation overrides, vendor/user classes and policy options are not included;
+an empty list means no explicit standard scope values, not no client options.
+Both views load on demand, identify their source and clear old values on target
+changes. Queries share the existing busy lock and disposable native worker.
+Native result buffers are retained only until the child exits; no nested frees.
+
+Lab acceptance: compare the scope view with Scope Options in DHCP Manager and
+`Get-DhcpServerv4OptionValue -ComputerName EXAMPLE-DHCP -ScopeId 192.0.2.0`.
+Compare server counters with `Get-DhcpServerv4Statistics -ComputerName
+EXAMPLE-DHCP`. Test an empty scope-option list and an unavailable server.
+API version is the DHCP management API version, not the Windows product build.
+Synthetic tests do not establish live-server parity. No runtime logs or real
+server diagnostics are included in the repository.
