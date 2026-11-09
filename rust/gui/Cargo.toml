@@ -1,0 +1,20 @@
+[package]
+name = "ipsherpa-gui"
+version = "0.10.0"
+edition = "2021"
+license = "MIT"
+description = "IPSherpa scope browser and reservation manager"
+rust-version = "1.93"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+ipsherpa = { path = ".." }
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

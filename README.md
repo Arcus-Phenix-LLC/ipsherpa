@@ -1,351 +1,80 @@
-<p align="center">
-  <img src="./ipsherpa-mascot.png" alt="IPSherpa Mascot" width="450">
-</p>
-
-<h1 align="center">IPSherpa</h1>
-
-<p align="center">
-<b>Find. Verify. Reserve.</b><br>
-Open-source IP & DHCP administration toolkit for Windows administrators.
-</p>
+<p align="center"><img src="./ipsherpa-mascot.png" alt="IPSherpa mascot" width="280"></p>
 
 # IPSherpa
 
-**IPSherpa** is an open-source Microsoft DHCP and IP address administration toolkit for Windows administrators.
+**Find. Verify. Reserve.** A Rust/Tauri desktop application for Microsoft DHCP administrators on Windows.
 
-Originally forked from **DHCP Scope Manager** by Flemming Sørvollen Skaret, IPSherpa expands the original idea into a broader network administration assistant. The goal is simple: help administrators find, verify, and reserve IP addresses with more confidence.
+The Rust application is now the primary implementation. Version **0.10.0** uses native Windows DHCP APIs for browsing, reservation creation and metadata editing. It does not launch PowerShell or import the DhcpServer PowerShell module.
 
-IPSherpa can be run from an RSAT-enabled administrator workstation instead of requiring an interactive session directly on the DHCP server.
+## Download and run
 
-> **Tagline:** Find. Verify. Reserve.
+Download `IPSherpa-GUI-0.10.0-Windows-x64.zip` and `SHA256SUMS.txt` from the [v0.10.0 release](https://github.com/Arcus-Phenix-LLC/ipsherpa/releases/tag/v0.10.0). Extract the ZIP and run `ipsherpa-gui.exe`; keep the license and third-party notices with it.
 
----
+Prerequisites for this first Rust release:
 
-## IPSherpa Mascot
+- Windows x64 with RSAT DHCP Server Tools installed.
+- Microsoft Edge WebView2 Runtime and the Windows DHCP API components.
+- Connectivity to the target DHCP server over the Windows DHCP management RPC path.
+- Read access for browsing and suitable DHCP administrative rights for writes, under your current Windows identity.
 
-IPSherpa's mascot represents the purpose of the project: guiding administrators safely through IP space.
+RSAT remains a deployment prerequisite even though IPSherpa does not execute PowerShell. Installation without RSAT is a future validation milestone. No alternate credentials are stored or supplied by the app.
 
-Just as a mountain sherpa helps climbers navigate difficult terrain, IPSherpa helps network administrators navigate complex DHCP environments by helping them:
-
-- 🔍 Discover available addresses
-- ✅ Verify they are truly unused
-- 📌 Create reservations safely
-- 🌐 Manage multiple DHCP servers
-- 🧭 Navigate networks with confidence
-
----
-
-## Project Status
-
-IPSherpa is currently in early modernization.
-
-Some script filenames still use the earlier working name **Scopey** while the project transitions to the new IPSherpa branding.
-
-Current entry points:
+To compare the downloaded ZIP with the published checksum:
 
 ```powershell
-.\Scopey.ps1
-.\Scopey-ReserveDevice.ps1
+Get-FileHash .\IPSherpa-GUI-0.10.0-Windows-x64.zip -Algorithm SHA256
 ```
 
-Future releases may rename these to IPSherpa-native filenames while preserving compatibility aliases.
+## Current features
 
----
-
-## Features
-
-### Current Features
-
-- Remote Microsoft DHCP Server management
-- Known DHCP server inventory
-- Interactive DHCP server selection
-- DHCP scope selection
-- DHCP failover replication
-- List free IP addresses
-- View active and reserved leases
-- Search leases by IP address
-- Search leases by MAC / Client ID
-- Create DHCP reservations
-- Remove DHCP reservations
-- Intelligent IP availability detection
-- Generic device reservation wizard
-
----
-
-## Requirements
-
-- Windows PowerShell 5.1 or newer
-- Microsoft DHCP PowerShell module
-- RSAT DHCP Server Tools **or** Windows DHCP Server Role
-- Administrative permissions to the DHCP server
-- Network connectivity to the DHCP server
-
-If running IPSherpa from an administrator workstation, install the RSAT DHCP tools first.
-
----
-
-## How to Use
-
-### Start IPSherpa
-
-Run the interactive DHCP helper:
-
-```powershell
-.\Scopey.ps1
-```
-
-Connect directly to a specific DHCP server:
-
-```powershell
-.\Scopey.ps1 -DhcpServer DHCP01
-```
-
-Use alternate credentials:
-
-```powershell
-.\Scopey.ps1 -DhcpServer DHCP01 -Credential (Get-Credential)
-```
-
-Use a custom known-server inventory file:
-
-```powershell
-.\Scopey.ps1 -ServerListPath .\Scopey.Servers.json
-```
-
----
-
-## Managing Multiple DHCP Servers
-
-IPSherpa supports multiple DHCP servers through a simple JSON inventory file.
-
-Create a file named:
-
-```text
-Scopey.Servers.json
-```
-
-Example:
-
-```json
-[
-  {
-    "Name": "DHCP01.contoso.local",
-    "Location": "Headquarters",
-    "Description": "Primary DHCP Server"
-  },
-  {
-    "Name": "DHCP02.contoso.local",
-    "Location": "Branch Office",
-    "Description": "Secondary DHCP Server"
-  },
-  {
-    "Name": "DHCP-LAB.contoso.local",
-    "Location": "Testing Lab",
-    "Description": "Lab DHCP Server"
-  }
-]
-```
-
-When IPSherpa starts, choose the desired DHCP server from the list.
-
-You can also switch DHCP servers from inside the application without restarting.
-
----
-
-## Selecting a Scope
-
-After connecting to a DHCP server, IPSherpa displays available IPv4 scopes.
-
-Select the Scope ID to begin managing that subnet.
-
-Example:
-
-```text
-192.168.10.0
-```
-
----
-
-## Viewing Available Addresses
-
-Menu option:
-
-```text
-3 - List all free IP addresses
-```
-
-IPSherpa displays addresses currently available for assignment inside the selected DHCP scope.
-
----
-
-## Intelligent IP Discovery
-
-One of IPSherpa's primary features is **Intelligent IP Discovery**.
-
-Traditional DHCP tools only show what DHCP knows. That can miss statically configured devices, stale DNS records, or devices that were never DHCP clients.
-
-IPSherpa checks multiple signals before recommending an address:
-
-- DHCP leases
-- DHCP reservations
-- DNS records
-- ICMP ping
-- Optional TCP port probes
-
-Example result:
-
-```text
-IPAddress:     192.168.10.210
-DHCP Lease:    No
-Reservation:   No
-DNS Record:    No
-Ping:          No
-Open Ports:    None
-
-Confidence:    5/5
-Status:        Likely Available
-```
-
-This helps reduce the chance of assigning an IP address already used by a statically configured device.
-
----
-
-## Testing a Specific Address
-
-Menu option:
-
-```text
-14 - Test specific IP availability
-```
-
-This runs Intelligent IP Discovery against one IP address.
-
-Use this before assigning or reserving an address manually.
-
----
-
-## Device Reservation Wizard
-
-IPSherpa includes a generic device reservation wizard.
-
-Run:
-
-```powershell
-.\Scopey-ReserveDevice.ps1
-```
-
-Connect to a specific DHCP server and scope:
-
-```powershell
-.\Scopey-ReserveDevice.ps1 -DhcpServer DHCP01 -ScopeId 192.168.10.0
-```
-
-Reserve a specific device type:
-
-```powershell
-.\Scopey-ReserveDevice.ps1 -DhcpServer DHCP01 -ScopeId 192.168.10.0 -DeviceType Camera
-```
-
-Supported device profiles:
-
-- Printer
-- Server
-- Switch
-- Camera
-- AccessPoint
-- Phone
-- Workstation
-- IoT
-- Other
-
-Each profile uses device-appropriate TCP port probes to improve confidence that an address is actually unused.
-
-| Device Type | Typical Ports Checked |
+| Area | Functionality |
 |---|---|
-| Printer | 80, 443, 515, 631, 9100 |
-| Switch | 22, 23, 80, 443, 161, 830 |
-| Server | 22, 80, 135, 139, 443, 445, 3389, 5985, 5986 |
-| Camera | 80, 443, 554, 8000, 8080 |
-| AccessPoint | 22, 80, 443, 8080, 8443 |
-| Phone | 80, 443, 5060, 5061 |
-| Workstation | 135, 139, 445, 3389, 5985 |
-| IoT | 80, 443, 1883, 5683, 8080 |
+| Navigation | Persistent server context, saved server names, dedicated server/scope/search screens and scope tabs |
+| Browsing | IPv4 scopes, allocation ranges, leases, reservations, utilization and exclusions |
+| Search | IP, hostname, client ID/MAC and lease-state filters; multi-server, cross-scope searches |
+| Options | Explicit standard scope options; inherited and policy/class-specific values are not included |
+| Server overview | DHCP management API response/version and server/scope counters |
+| Create reservations | Reviewed DHCP-only creation with a six-byte unicast MAC, conflict checks and read-back verification |
+| Edit reservations | Reviewed name/description edits for DHCP, BOOTP and DHCP/BOOTP reservations; existing IP, client ID, type and options are preserved |
 
-The wizard walks through:
+Connect to a server, select a scope and use **Overview**, **Leases**, **Reservations** or **Options**. Loading a panel or switching tabs does not silently refresh its snapshots. Use the panel's refresh control for current data.
 
-1. Selecting a DHCP scope
-2. Choosing a device profile
-3. Finding likely available addresses
-4. Testing candidate addresses
-5. Creating the DHCP reservation
+For writes, choose **New reservation** or **Edit**, then **Check & review**. Verify the server, scope and proposed values, check the confirmation box and explicitly select **Create reservation** or **Apply changes**. Reviews are single-use and expire after two minutes.
 
----
+## Scope and limitations
 
-## Why IPSherpa?
+- Checks cover the selected server/scope. They do not establish that an address is unused by statically configured devices, trigger failover replication, or lock out concurrent administrators.
+- Writes are not atomic multi-step transactions. A reservation can be partially created if a later metadata or verification step fails. On an uncertain outcome, inspect DHCP Manager before another attempt; the app does not retry or roll back automatically.
+- Six-byte unicast MACs are supported. Arbitrary extended DHCP client IDs and reservation IP/client-ID changes are not supported by the write workflow.
+- Allocation-range, exclusion and lease checks apply conservatively to creation and editing. Metadata edits outside the current usable pool are blocked.
+- Reservation deletion, alternate credentials, static-device/DNS/ICMP/TCP availability probes and failover replication are legacy features that have not been ported to the Rust GUI.
+- API health counters are snapshots, not a comprehensive service, failover or database health assessment. Windows controls RPC duration; the application does not impose a native RPC timeout.
 
-DHCP administration often requires administrators to:
+See the [desktop guide](rust/gui/README.md) and [release notes](RELEASE_NOTES.md) for the write model and validation boundaries.
 
-- RDP into a DHCP server
-- Search leases manually
-- Compare reservations manually
-- Ping addresses one at a time
-- Check DNS separately
-- Guess whether a static device already owns an address
+## Legacy PowerShell application
 
-IPSherpa is designed to guide administrators through that terrain.
+The former scripts and their original documentation are archived under [legacy/powershell](legacy/powershell/README.md). The pre-transition `master` is preserved by the [`legacy-powershell-2026-11-09` tag](https://github.com/Arcus-Phenix-LLC/ipsherpa/tree/legacy-powershell-2026-11-09).
 
-It brings DHCP administration to the workstation while adding network intelligence that the built-in DHCP console does not provide.
+This release promotes the validated Rust feature set; it does not claim complete parity with every legacy menu item. Use the archived PowerShell application when an unported legacy function is required. Its RSAT PowerShell module requirements still apply. Saved GUI server profiles do not automatically import the legacy JSON inventory.
 
----
+## Build from source
 
-## Roadmap
+Install Rust 1.93 or newer with the MSVC toolchain, Visual Studio C++ Build Tools and the Windows SDK (including the DHCP import library). From the repository root:
 
-Planned future improvements:
+```powershell
+cargo build --release --locked --manifest-path rust/gui/Cargo.toml
+.\rust\gui\target\release\ipsherpa-gui.exe
+```
 
-- Rename scripts from Scopey working names to IPSherpa-native names
-- Search across all DHCP scopes
-- Multi-server dashboard
-- Automatic device placement
-- Reservation templates
-- Duplicate IP detection
-- DHCP health dashboard
-- DHCP utilization graphs
-- CSV / Excel reporting
-- Search by hostname
-- Search by MAC address across all scopes
-- VLAN awareness
-- DNS integration
-- Active Directory integration
-- Interactive console improvements
-- Windows GUI
-- PowerShell 7 compatibility investigation
+The independent read-only CLI can be built with `cargo build --release --locked --manifest-path rust/Cargo.toml`. Native workers are isolated child processes; returned RPC buffers live until worker exit.
 
----
+## Validation and privacy
 
-## Mascot Concept
+The Rust GUI's browsing, navigation, native reservation creation and DHCP/BOOTP metadata-editing milestones have been confirmed in the development lab. Automated checks cover 43 Rust tests, browser regressions, ABI fixtures, formatting, Clippy and packaged-worker input validation. Synthetic tests do not replace deployment-specific validation.
 
-IPSherpa's mascot concept is a friendly network guide: a sherpa carrying Ethernet cables, a clipboard of IP addresses, and a compass shaped like a subnet map.
+Runtime diagnostics stay local to `%LOCALAPPDATA%\IPSherpa\logs`. They can contain target server/scope information. Do not commit runtime logs, real server inventories, saved profiles or environment-specific diagnostic data.
 
-The mascot reinforces the project's purpose:
+## Credits and license
 
-> Guiding administrators safely through IP space.
-
----
-
-## Credits
-
-Original project:
-
-**DHCP Scope Manager**
-
-Created by Flemming Sørvollen Skaret.
-
-IPSherpa is an independent open-source fork that modernizes and expands the original project while preserving the original spirit of simplifying Microsoft DHCP administration.
-
----
-
-## License
-
-This project remains licensed under the MIT License unless otherwise noted.
-
-The original copyright and license notices from the upstream project should be preserved.
+IPSherpa builds on **DHCP Scope Manager**, created by **Flemming Sørvollen Skaret**, and preserves the original project's copyright and license notices. Licensed under [MIT](LICENSE). Packaged third-party license notices accompany the executable.
