@@ -1,11 +1,13 @@
 # IPSherpa Rust experiment
 
-Read-only proof of concept on `rust-transition`. Lists IPv4 scope IDs using
-`DhcpEnumSubnets` directly; no PowerShell invocation or DHCP mutation functions.
+Rust transition experiment on `rust-transition`. The CLI lists IPv4 scope IDs
+using `DhcpEnumSubnets` directly and remains read-only without PowerShell.
 Uses the current Windows process identity, with no stored credentials.
 
 The [Tauri GUI](gui/README.md) reuses the same native API through `src/lib.rs`.
-It adds a server field, Connect/Refresh, and a scope detail table. The CLI remains
+It adds server/scope browsing, search and scope details. GUI 0.8.0 also adds
+reviewed DHCP-only reservation creation through Windows PowerShell and the RSAT
+DhcpServer module. See its README for checks, confirmation and limitations. The CLI remains
 available independently and requires no Tauri dependencies.
 
 ## Build and run

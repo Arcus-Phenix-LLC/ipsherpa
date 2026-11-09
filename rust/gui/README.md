@@ -1,11 +1,12 @@
 # IPSherpa desktop preview
 
-A Windows Tauri 2 GUI for the read-only Rust scope enumeration experiment.
+A Windows Tauri 2 GUI for DHCP browsing and reviewed reservation creation.
 Enter `DHCP01` (or your server hostname/IP), select **Connect**, and use **Refresh**
 to query that same server again. Editing the server field requires Connect to
 switch targets. The table shows IPv4 scope IDs, names, configured allocation
-ranges, and state. Select a scope ID (or its row) to open **Leases** and
-**Reservations** tabs. All operations remain read-only.
+ranges, and state. Select a scope to browse Overview, Leases, Reservations and
+Options. Browsing remains read-only; **New reservation** is the explicit write
+workflow added in 0.8.0 and requires RSAT DHCP tools.
 
 ## Read-only record browsing (0.2.0)
 
@@ -311,3 +312,43 @@ Tabs support arrow keys, Home and End. Navigation itself does not query DHCP.
 Browser regression checks cover view switching, record-cache reuse, filters,
 pagination, source context, search return, keyboard navigation, loading/errors,
 and narrow layout. All fixtures are synthetic; no runtime logs are committed.
+
+## Reviewed reservation creation (0.8.0)
+
+Select a scope, choose **New reservation**, and enter an IPv4 address, six-byte
+unicast MAC, name and optional description. **Check & review** performs read-only
+checks, then displays normalized values with the exact server and scope. Check
+the confirmation box and choose **Create reservation** to write. Editing or
+closing the dialog does not write. The backend binds a single-use review token
+to the normalized request; reviews expire after two minutes.
+
+This first write workflow uses Windows PowerShell and the RSAT DhcpServer module
+under the current Windows identity. It calls Add-DhcpServerv4Reservation with
+Type Dhcp. The existing native read-only workers remain unchanged. Input is
+passed as JSON on stdin to a fixed embedded script, never interpolated into code.
+No execution-policy changes or credential storage are required.
+
+Preview and Create each re-read the selected scope, exclusions, reservations
+and all lease states. Addresses outside its usable allocation range or inside
+exclusions are blocked. Existing reservation IPs/MACs, conflicting lease IPs,
+non-active lease states, or a same-MAC lease at another address are blocked.
+An active same-MAC lease at the requested address may become a reservation.
+No existing lease, reservation or exclusion is removed or overwritten.
+Extended client IDs, BOOTP, edits, deletes and automatic lease moves are deferred.
+
+After Add returns, the reservation is read back and compared with the requested
+IP, MAC, name, description and DHCP type. A write error or failed/mismatched
+readback has an unknown outcome: inspect DHCP Manager before trying again.
+There is no automatic retry or rollback. Record caches and capacity snapshots
+are invalidated after the attempt; refresh records for current data.
+
+Checks apply only to this scope/server. They cannot detect statically configured
+devices, guarantee network conflict freedom, or atomically exclude changes by
+another administrator between checking and writing. Failover replication and
+other servers are not checked or triggered by this workflow.
+
+Validation covers normalized input, single-use/expired reviews, synthetic
+PowerShell cmdlet failures/conflicts/readback, and browser confirmation flow.
+No live reservation writes are performed by automated checks. Use an authorized
+lab scope, create a disposable reservation, and compare it with DHCP Manager.
+Runtime logs and real server data must not be committed.

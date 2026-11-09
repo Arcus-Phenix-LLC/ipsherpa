@@ -2,6 +2,7 @@
 
 mod diagnostics;
 mod inspection;
+mod reservation;
 mod worker;
 
 use std::sync::{
@@ -267,6 +268,51 @@ async fn inspect_dhcp(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn preview_reservation(
+    request: reservation::Request,
+    state: tauri::State<'_, QueryState>,
+    reviews: tauri::State<'_, Arc<reservation::Reviews>>,
+) -> Result<reservation::Preview, String> {
+    if state
+        .0
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("Another operation is running.".into());
+    }
+    let guard = QueryGuard(Arc::clone(&state.0));
+    let reviews = Arc::clone(reviews.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        reviews.preview(request)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn create_reservation(
+    token: String,
+    state: tauri::State<'_, QueryState>,
+    reviews: tauri::State<'_, Arc<reservation::Reviews>>,
+) -> Result<reservation::Outcome, String> {
+    if state
+        .0
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("Another operation is running.".into());
+    }
+    let guard = QueryGuard(Arc::clone(&state.0));
+    let reviews = Arc::clone(reviews.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        reviews.create(&token)
+    })
+    .await
+    .map_err(|_| "Write outcome unknown. Inspect DHCP Manager before trying again.".to_owned())?
+}
+
 fn main() {
     diagnostics::init();
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -283,11 +329,14 @@ fn main() {
     }
     tauri::Builder::default()
         .manage(QueryState::default())
+        .manage(Arc::new(reservation::Reviews::default()))
         .invoke_handler(tauri::generate_handler![
             list_scopes,
             list_records,
             scope_capacity,
-            inspect_dhcp
+            inspect_dhcp,
+            preview_reservation,
+            create_reservation
         ])
         .run(tauri::generate_context!())
         .expect("Failed to start IPSherpa. Check the WebView2 runtime installation.");

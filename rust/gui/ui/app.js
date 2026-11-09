@@ -99,6 +99,7 @@ function setBusy(value) {
   window.ScopeCapacity?.setBusy(value);
   window.InspectionViews?.setBusy(value);
   window.Navigation?.setBusy(value);
+  window.ReservationUI?.setBusy(value);
 }
 
 function clearSelection() {
@@ -107,6 +108,7 @@ function clearSelection() {
   window.ScopeCapacity?.reset();
   window.InspectionViews?.scope(null);
   selectedScope = null;
+  window.ReservationUI?.setBusy(busy);
   recordData = [];
   recordsLoaded = false;
   filters = { leases: blankFilter(), reservations: blankFilter() };
@@ -231,6 +233,7 @@ function selectScope(scope, kind = null) {
   recordCache = {};
   recordsLoaded = false; recordData = []; recordPage = 0;
   selectedScope = scope;
+  window.ReservationUI?.setBusy(busy);
   window.ScopeCapacity?.selectionChanged(connectedServer, scope);
   window.InspectionViews?.scope(scope.scopeId);
   filters = { leases: blankFilter(), reservations: blankFilter() };

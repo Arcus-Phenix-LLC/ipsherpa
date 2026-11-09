@@ -176,3 +176,16 @@ html, body { height: 100%; overflow: hidden; }
  .capacity-grid, .pool-grid { margin: 14px 18px; }
  .view-heading { padding-left: 18px; padding-right: 18px; }
 }
+#reservation-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; border: 1px solid #bacdc7; border-radius: 14px; padding: 24px; color: #173237; }
+#reservation-dialog::backdrop { background: #122f2c80; }
+#reservation-fields { border: 0; padding: 0; margin: 18px 0; display: grid; gap: 8px; }
+#reservation-fields[hidden] { display: none; }
+#reservation-fields input { width: 100%; }
+#reservation-fields label { margin-top: 8px; }
+.reservation-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+#reservation-summary { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 8px; font-size: 13px; }
+#reservation-summary dd { margin: 0; overflow-wrap: anywhere; }
+#reservation-summary dt { color: #627773; }
+#reservation-status { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+#reservation-review label { font-size: 13px; line-height: 1.6; }
+#reservation-confirm { flex: none; }

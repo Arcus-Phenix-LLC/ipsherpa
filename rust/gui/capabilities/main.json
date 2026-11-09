@@ -1,6 +1,6 @@
 {
   "identifier": "main",
-  "description": "Allow the bundled browser to list scopes, leases and reservations.",
+  "description": "Allow bundled DHCP browsing and explicit reviewed reservation creation.",
   "windows": ["main"],
-  "permissions": ["allow-list-scopes","allow-list-records", "allow-scope-capacity", "allow-inspect-dhcp"]
+  "permissions": ["allow-list-scopes","allow-list-records", "allow-scope-capacity", "allow-inspect-dhcp", "allow-preview-reservation", "allow-create-reservation"]
 }

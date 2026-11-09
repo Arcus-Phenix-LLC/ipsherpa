@@ -1,9 +1,9 @@
 [package]
 name = "ipsherpa-gui"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 license = "MIT"
-description = "Read-only IPSherpa scope browser"
+description = "IPSherpa scope browser and reservation manager"
 rust-version = "1.93"
 
 [build-dependencies]
