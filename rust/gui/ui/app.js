@@ -92,6 +92,7 @@ function setBusy(value) {
   refreshButton.disabled = value || connectedServer === null;
   document.querySelectorAll(".scope-select").forEach(button => { button.disabled = value; });
   tabButtons.forEach(button => { button.disabled = value; });
+  document.querySelectorAll(".reservation-edit-row").forEach(button => { button.disabled = value || button.dataset.unsupported === "true"; });
   recordRefresh.disabled = value || selectedScope === null;
   updateFilterControls();
   updatePaging();
@@ -144,6 +145,16 @@ function renderRecordsPage() {
       cell.textContent = value;
       row.append(cell);
     }
+    if (activeTab === "reservations") {
+      const cell = document.createElement("td"), button = document.createElement("button");
+      button.type = "button"; button.className = "secondary reservation-edit-row"; button.textContent = "Edit";
+      const hex = (record.clientId || "").replace(/[-:.]/g, "");
+      const supported = record.clientType === "DHCP" && /^[0-9a-f]{12}$/i.test(hex) && !(parseInt(hex.slice(0,2),16) & 1) && !/^0+$/.test(hex);
+      button.dataset.unsupported = String(!supported); button.disabled = busy || !supported;
+      button.setAttribute("aria-label", `Edit reservation ${record.ipAddress}`);
+      button.title = supported ? "Edit name and description" : "Editing supports DHCP-only reservations with six-byte unicast MACs.";
+      button.addEventListener("click", () => window.ReservationUI?.open(record)); cell.append(button); row.append(cell);
+    }
     fragment.append(row);
   }
   recordBody.replaceChildren(fragment);
@@ -165,7 +176,7 @@ async function queryRecords(refresh = false) {
   document.querySelector("#records-caption").textContent = `${kind} for scope ${scopeId} on ${server}`;
   document.querySelector("#lease-time-hint").hidden = kind !== "leases";
   const headings = kind === "leases" ? ["IP address", "Hostname", "Client ID", "State", "Lease expires", "Description"]
-    : ["IP address", "Name", "Client ID", "Client type", "Options", "Description"];
+    : ["IP address", "Name", "Client ID", "Client type", "Options", "Description", "Actions"];
   document.querySelector("#records-columns").replaceChildren(...headings.map(label => {
     const th = document.createElement("th"); th.scope = "col"; th.textContent = label; return th;
   }));

@@ -18,6 +18,15 @@ pub struct Request {
     pub mac: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub original: Option<Original>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Original {
+    pub name: String,
+    pub description: String,
+    pub client_type: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Outcome {
@@ -83,6 +92,27 @@ pub fn validate(mut r: Request) -> Result<Request, String> {
     {
         return Err("Name is required; name and description must each be at most 255 characters without control characters.".into());
     }
+    if let Some(original) = &r.original {
+        if original.client_type != "DHCP" {
+            return Err(
+                "Editing currently supports DHCP-only reservations with six-byte unicast MACs."
+                    .into(),
+            );
+        }
+        if original.name.encode_utf16().count() > 255
+            || original.description.encode_utf16().count() > 255
+            || original
+                .name
+                .chars()
+                .chain(original.description.chars())
+                .any(char::is_control)
+        {
+            return Err("Existing metadata is unsupported by this editing workflow.".into());
+        }
+        if original.name == r.name && original.description == r.description {
+            return Err("Change the name or description before reviewing.".into());
+        }
+    }
     Ok(r)
 }
 fn run(phase: &str, r: &Request) -> Result<Outcome, String> {
@@ -129,7 +159,7 @@ fn run(phase: &str, r: &Request) -> Result<Outcome, String> {
     })?;
     if !matches!(
         result.status.as_str(),
-        "ready" | "blocked" | "created" | "unknown"
+        "ready" | "blocked" | "created" | "updated" | "unknown"
     ) {
         return Err("Unrecognized reservation result.".into());
     }
@@ -169,7 +199,12 @@ impl Reviews {
             }
         };
         // Once dispatched a write can have an indeterminate outcome. Never retry it.
-        Ok(run("create",&review).unwrap_or_else(|e|Outcome{status:"unknown".into(),message:format!("The reservation may have been created. Inspect DHCP Manager before trying again. {e}")}))
+        Ok(run("create", &review).unwrap_or_else(|e| Outcome {
+            status: "unknown".into(),
+            message: format!(
+                "The reservation may have changed. Inspect DHCP Manager before trying again. {e}"
+            ),
+        }))
     }
     fn take(&self, token: &str) -> Result<Request, String> {
         let review = self
@@ -195,6 +230,7 @@ mod tests {
             mac: "02:aa:bb:cc:dd:ee".into(),
             name: "Example 東京".into(),
             description: "Synthetic".into(),
+            original: None,
         }
     }
     #[test]
@@ -228,6 +264,37 @@ mod tests {
         let mut r = request();
         r.name = "\n".into();
         assert!(validate(r).is_err());
+    }
+    #[test]
+    fn validates_edit_baseline_and_rejects_noop_or_unsupported_type() {
+        let mut r = request();
+        r.original = Some(Original {
+            name: r.name.clone(),
+            description: r.description.clone(),
+            client_type: "DHCP".into(),
+        });
+        assert!(validate(r.clone()).is_err());
+        r.name = "Updated".into();
+        assert!(validate(r.clone()).is_ok());
+        r.original.as_mut().unwrap().client_type = "DHCP / BOOTP".into();
+        assert!(validate(r).is_err());
+    }
+    #[test]
+    fn review_preserves_before_and_after_values() {
+        let reviews = Reviews::default();
+        let mut r = request();
+        r.original = Some(Original {
+            name: "Before".into(),
+            description: "Previous".into(),
+            client_type: "DHCP".into(),
+        });
+        *reviews.0.lock().unwrap() = Some(Review {
+            token: "edit".into(),
+            request: r.clone(),
+            expires: Instant::now() + Duration::from_secs(120),
+        });
+        assert_eq!(reviews.take("edit").unwrap(), r);
+        assert!(reviews.take("edit").is_err());
     }
     #[test]
     fn review_is_bound_expiring_and_single_use() {

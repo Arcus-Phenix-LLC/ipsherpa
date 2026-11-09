@@ -19,8 +19,17 @@ try {
  $excluded=@(Get-DhcpServerv4ExclusionRange -ComputerName $r.server -ScopeId $r.scopeId -ErrorAction Stop)
  foreach($range in $excluded) { if($ip -ge (IPNumber $range.StartRange) -and $ip -le (IPNumber $range.EndRange)){throw 'Address is in an exclusion range. This workflow does not change exclusions.'} }
  $reservations=@(Get-DhcpServerv4Reservation -ComputerName $r.server -ScopeId $r.scopeId -ErrorAction Stop)
+ $editing=$null -ne $r.original
+ if($editing){
+  $target=@($reservations | Where-Object {(IPNumber $_.IPAddress) -eq $ip})
+  if($target.Count -ne 1){throw 'Reservation is missing or ambiguous. Refresh reservations and review again.'}
+  $current=$target[0]
+  if((Client $current.ClientId) -ne (Client $r.mac) -or [string]$current.Type -ne 'Dhcp' -or [string]$r.original.clientType -ne 'DHCP'){throw 'Reservation identity or type changed. Refresh reservations and review again.'}
+  if([string]$current.Name -cne [string]$r.original.name -or [string]$current.Description -cne [string]$r.original.description){throw 'Reservation metadata changed since it was loaded. Refresh reservations and review again.'}
+  if([string]$r.name -ceq [string]$current.Name -and [string]$r.description -ceq [string]$current.Description){throw 'No name or description changes to apply.'}
+ }
  foreach($existing in $reservations) {
-  if((IPNumber $existing.IPAddress) -eq $ip){throw 'A reservation already exists at this address. No changes were made.'}
+  if((IPNumber $existing.IPAddress) -eq $ip){if($editing){continue};throw 'A reservation already exists at this address. No changes were made.'}
   if((Client $existing.ClientId) -eq (Client $r.mac)){throw 'This MAC already has a reservation in this scope. No changes were made.'}
  }
  $leases=@(Get-DhcpServerv4Lease -ComputerName $r.server -ScopeId $r.scopeId -AllLeases -ErrorAction Stop)
@@ -33,11 +42,16 @@ try {
  if($inputData.phase -eq 'preview'){Reply 'ready' 'Scope range, exclusions, reservations and all lease states were checked. No DHCP changes made.';return}
  if($inputData.phase -ne 'create'){throw 'Unknown reservation operation.'}
  $stage='writing'
+ if($editing){
+  Set-DhcpServerv4Reservation -ComputerName $r.server -IPAddress $r.ipAddress -Name $r.name -Description $r.description -Confirm:$false -ErrorAction Stop | Out-Null
+ }else{
  Add-DhcpServerv4Reservation -ComputerName $r.server -ScopeId $r.scopeId -IPAddress $r.ipAddress -ClientId $r.mac -Name $r.name -Description $r.description -Type Dhcp -Confirm:$false -ErrorAction Stop | Out-Null
+ }
  $stage='verifying'
  $check=@(Get-DhcpServerv4Reservation -ComputerName $r.server -ScopeId $r.scopeId -ErrorAction Stop | Where-Object { (IPNumber $_.IPAddress) -eq $ip })
  if($check.Count -ne 1 -or (Client $check[0].ClientId) -ne (Client $r.mac) -or [string]$check[0].Name -cne [string]$r.name -or [string]$check[0].Description -cne [string]$r.description -or [string]$check[0].Type -ne 'Dhcp'){throw 'Read-back did not match the requested reservation.'}
- Reply 'created' 'Reservation created and verified on the selected server. Refresh reservations to load the current table.'
+ if($editing){Reply 'updated' 'Reservation name and description updated and verified. Refresh reservations to reload the table.'}
+ else{Reply 'created' 'Reservation created and verified on the selected server. Refresh reservations to load the current table.'}
 } catch {
  if($stage -eq 'checking'){Reply 'blocked' $_.Exception.Message}
  else {Reply 'unknown' ('The write may have succeeded. Inspect DHCP Manager before trying again. '+$_.Exception.Message)}

@@ -40,7 +40,7 @@
         </div>
         <p id="profiles-message" class="hint">Save server names for reuse. Select a saved server, then Connect. No credentials are stored.</p>
       </section>
-      <p class="sidebar-foot">IPSherpa 0.8.0 · Reservations enabled</p>
+      <p class="sidebar-foot">IPSherpa 0.9.0 · Reservations enabled</p>
     </aside>
     <main id="workspace">
       <header class="workspace-header">
@@ -147,14 +147,14 @@
   <dialog id="reservation-dialog" aria-labelledby="reservation-title">
     <form id="reservation-form">
       <h2 id="reservation-title">New DHCP reservation</h2><p id="reservation-source" class="hint"></p>
-      <p class="hint">Checks apply to the selected scope on this server. They do not detect static devices, other servers or failover replication. No existing leases, reservations or exclusions will be changed.</p>
+      <p id="reservation-help" class="hint">Checks apply to the selected scope on this server. They do not detect static devices, other servers or failover replication. No existing leases, reservations or exclusions will be changed.</p>
       <fieldset id="reservation-fields">
         <label for="reservation-ip">IPv4 address</label><input id="reservation-ip" required autocomplete="off" placeholder="192.0.2.25">
         <label for="reservation-mac">MAC address (six bytes)</label><input id="reservation-mac" required autocomplete="off" placeholder="02-AA-BB-CC-DD-EE">
         <label for="reservation-name">Name</label><input id="reservation-name" required maxlength="255" autocomplete="off">
         <label for="reservation-description">Description (optional)</label><input id="reservation-description" maxlength="255" autocomplete="off">
       </fieldset>
-      <div id="reservation-review" hidden><h3>Review DHCP-only reservation</h3><dl id="reservation-summary"></dl><p class="hint">Review expires in two minutes. Create rechecks conflicts before writing.</p><label><input id="reservation-confirm" type="checkbox"> I confirm this reservation on the server and scope shown above.</label></div>
+      <div id="reservation-review" hidden><h3 id="reservation-review-title">Review DHCP-only reservation</h3><dl id="reservation-summary"></dl><p class="hint">Review expires in two minutes. Changes are rechecked before writing.</p><label><input id="reservation-confirm" type="checkbox"> <span id="reservation-confirm-label">I confirm this reservation on the server and scope shown above.</span></label></div>
       <p id="reservation-status" role="status" aria-live="polite"></p>
       <div class="reservation-actions"><button id="reservation-cancel" type="button" class="secondary">Cancel</button><button id="reservation-edit" type="button" class="secondary" hidden>Edit</button><button id="reservation-preview" type="submit">Check &amp; review</button><button id="reservation-create" type="button" hidden disabled>Create reservation</button></div>
     </form>

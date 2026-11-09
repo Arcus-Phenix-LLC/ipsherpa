@@ -6,7 +6,8 @@ Uses the current Windows process identity, with no stored credentials.
 
 The [Tauri GUI](gui/README.md) reuses the same native API through `src/lib.rs`.
 It adds server/scope browsing, search and scope details. GUI 0.8.0 also adds
-reviewed DHCP-only reservation creation through Windows PowerShell and the RSAT
+reviewed DHCP-only reservation creation (0.8.0) and name/description editing
+(0.9.0) through Windows PowerShell and the RSAT
 DhcpServer module. See its README for checks, confirmation and limitations. The CLI remains
 available independently and requires no Tauri dependencies.
 

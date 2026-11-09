@@ -1,6 +1,6 @@
 # IPSherpa desktop preview
 
-A Windows Tauri 2 GUI for DHCP browsing and reviewed reservation creation.
+A Windows Tauri 2 GUI for DHCP browsing and reviewed reservation changes.
 Enter `DHCP01` (or your server hostname/IP), select **Connect**, and use **Refresh**
 to query that same server again. Editing the server field requires Connect to
 switch targets. The table shows IPv4 scope IDs, names, configured allocation
@@ -352,3 +352,32 @@ PowerShell cmdlet failures/conflicts/readback, and browser confirmation flow.
 No live reservation writes are performed by automated checks. Use an authorized
 lab scope, create a disposable reservation, and compare it with DHCP Manager.
 Runtime logs and real server data must not be committed.
+
+## Reservation metadata editing (0.9.0)
+
+Open the Reservations tab and choose **Edit** on a supported row. Only name
+and description can change. IP, client ID, DHCP type and reservation options
+remain fixed. This milestone supports DHCP-only reservations with six-byte
+unicast MACs; other rows have a disabled Edit action with an explanation.
+
+**Check & review** compares the row's original name, description, client ID and
+DHCP type with the server before issuing a single-use two-minute review. The
+review shows before and after values. Confirm the shown server/scope and select
+**Apply changes** to recheck the original values, apply only Name/Description
+through Set-DhcpServerv4Reservation, and read back the result. Stale, missing,
+no-op or conflicting requests are blocked. The existing allocation, exclusion
+and lease checks from creation also apply, conservatively restricting editing
+to supported reservations within the current usable pool.
+
+A changed server record requires refreshing the Reservations table and starting
+a new review. The comparison is not an atomic server-side transaction: another
+administrator can still change the reservation between check and Set. Failed
+writes or mismatched/failed readback have an unknown outcome; inspect DHCP
+Manager before another attempt. No automatic retry, rollback, delete or recreate
+is performed. Cached record tables are cleared after the attempt.
+
+Automated tests use synthetic records/cmdlets only. Lab acceptance: edit a
+disposable reservation's name and description, compare before/after values,
+verify fixed IP/MAC/type/options, and test clearing its description. Also change
+metadata externally after loading the table to verify stale edits are blocked.
+No live tests or runtime logs are committed.
