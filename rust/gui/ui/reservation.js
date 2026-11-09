@@ -10,7 +10,7 @@
   if(busy||!selectedScope||!connectedServer)return;
   source={server:connectedServer,scopeId:selectedScope.scopeId};form.reset();original=record?{name:record.name,description:record.description,clientType:record.clientType}:null;finished=false;edit();
   $('ip').readOnly=Boolean(record);$('mac').readOnly=Boolean(record);
-  if(record){$('ip').value=record.ipAddress;$('mac').value=record.clientId;$('name').value=record.name;$('description').value=record.description;}
+  if(record){$('ip').value=record.ipAddress;$('mac').value=reservationMac(record.clientId)||record.clientId;$('name').value=record.name;$('description').value=record.description;}
   $('title').textContent=record?'Edit reservation metadata':'New DHCP reservation';
   $('review-title').textContent=record?'Review name and description changes':'Review DHCP-only reservation';
   $('confirm-label').textContent=record?'I confirm these changes on the server and scope shown above.':'I confirm this reservation on the server and scope shown above.';
@@ -29,7 +29,7 @@
    const result=await window.__TAURI__.core.invoke('preview_reservation',{request});
    if(result.request.server!==source.server||result.request.scopeId!==source.scopeId)throw new Error('Review source did not match the selected scope.');
    status(result.outcome.message);
-   if(result.outcome.status==='ready'&&result.token){token=result.token;$('summary').replaceChildren();for(const [label,value] of [['Server',result.request.server],['Scope',result.request.scopeId],['IP',result.request.ipAddress],['MAC',result.request.mac],...(original?[['Name before',result.request.original.name||'(none)'],['Name after',result.request.name],['Description before',result.request.original.description||'(none)'],['Description after',result.request.description||'(none)']]:[['Name',result.request.name],['Description',result.request.description||'(none)']]),['Type','DHCP only']]){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;$('summary').append(dt,dd);}$('fields').hidden=true;$('review').hidden=false;$('preview').hidden=true;$('create').hidden=false;$('edit').hidden=false;}
+   if(result.outcome.status==='ready'&&result.token){token=result.token;$('summary').replaceChildren();for(const [label,value] of [['Server',result.request.server],['Scope',result.request.scopeId],['IP',result.request.ipAddress],['MAC',result.request.mac],...(original?[['Name before',result.request.original.name||'(none)'],['Name after',result.request.name],['Description before',result.request.original.description||'(none)'],['Description after',result.request.description||'(none)']]:[['Name',result.request.name],['Description',result.request.description||'(none)']]),['Type',original?result.request.original.clientType:'DHCP only']]){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;$('summary').append(dt,dd);}$('fields').hidden=true;$('review').hidden=false;$('preview').hidden=true;$('create').hidden=false;$('edit').hidden=false;}
   }catch(error){status(String(error));}
   finally{pending=false;$('fields').disabled=false;setBusy(false);controls();}
  });

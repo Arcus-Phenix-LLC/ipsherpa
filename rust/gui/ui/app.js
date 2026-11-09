@@ -132,6 +132,17 @@ function expiryText(record) {
   return Number.isNaN(when.getTime()) ? "Invalid server timestamp" : when.toLocaleString(undefined, { timeZoneName: "short" });
 }
 
+function reservationMac(value) {
+  let hex = (value || "").replace(/[-:.]/g, "").toUpperCase();
+  if (hex.length === 22 && selectedScope) {
+    const prefix = selectedScope.scopeId.split(".").reverse().map(v => Number(v).toString(16).padStart(2,"0")).join("").toUpperCase() + "01";
+    if (!hex.startsWith(prefix)) return null;
+    hex = hex.slice(10);
+  }
+  if (!/^[0-9A-F]{12}$/.test(hex) || (parseInt(hex.slice(0,2),16) & 1) || /^0+$/.test(hex)) return null;
+  return hex.match(/../g).join("-");
+}
+
 function renderRecordsPage() {
   const filtered = filteredRecords();
   const fragment = document.createDocumentFragment();
@@ -148,11 +159,11 @@ function renderRecordsPage() {
     if (activeTab === "reservations") {
       const cell = document.createElement("td"), button = document.createElement("button");
       button.type = "button"; button.className = "secondary reservation-edit-row"; button.textContent = "Edit";
-      const hex = (record.clientId || "").replace(/[-:.]/g, "");
-      const supported = record.clientType === "DHCP" && /^[0-9a-f]{12}$/i.test(hex) && !(parseInt(hex.slice(0,2),16) & 1) && !/^0+$/.test(hex);
+      const mac = reservationMac(record.clientId);
+      const supported = ["DHCP","BOOTP","DHCP / BOOTP"].includes(record.clientType) && Boolean(mac);
       button.dataset.unsupported = String(!supported); button.disabled = busy || !supported;
       button.setAttribute("aria-label", `Edit reservation ${record.ipAddress}`);
-      button.title = supported ? "Edit name and description" : "Editing supports DHCP-only reservations with six-byte unicast MACs.";
+      button.title = supported ? "Edit name and description" : "Editing supports DHCP, BOOTP and DHCP/BOOTP with six-byte unicast MACs.";
       button.addEventListener("click", () => window.ReservationUI?.open(record)); cell.append(button); row.append(cell);
     }
     fragment.append(row);

@@ -3,6 +3,7 @@
 mod diagnostics;
 mod inspection;
 mod reservation;
+mod reservation_native;
 mod worker;
 
 use std::sync::{
@@ -316,6 +317,12 @@ async fn create_reservation(
 fn main() {
     diagnostics::init();
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|arg| arg == "--reservation-worker")
+    {
+        std::process::exit(reservation_native::child_main(&args[1..]));
+    }
     if args.first().is_some_and(|arg| arg == "--dhcp-worker") {
         let code = match args.as_slice() {
             [_, mode, server] => worker::child_main(mode, server, None),

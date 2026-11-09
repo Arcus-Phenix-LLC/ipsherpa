@@ -453,6 +453,27 @@ pub fn list_records_for_worker(
     }
 }
 
+/// Internal bridge for an isolated native write worker. Returned RPC storage
+/// lives until that process exits; callers may read again for verification.
+#[doc(hidden)]
+pub fn records_in_write_worker(
+    server: &str,
+    scope: &str,
+    kind: &str,
+) -> Result<Vec<ClientRecord>, String> {
+    let server = crate::validate_server(server)?;
+    let id = validate_scope_id(scope)?;
+    #[cfg(windows)]
+    {
+        native::query(server, id, kind)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (server, id, kind);
+        Err("Windows is required.".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -5,11 +5,13 @@ using `DhcpEnumSubnets` directly and remains read-only without PowerShell.
 Uses the current Windows process identity, with no stored credentials.
 
 The [Tauri GUI](gui/README.md) reuses the same native API through `src/lib.rs`.
-It adds server/scope browsing, search and scope details. GUI 0.8.0 also adds
-reviewed DHCP-only reservation creation (0.8.0) and name/description editing
-(0.9.0) through Windows PowerShell and the RSAT
-DhcpServer module. See its README for checks, confirmation and limitations. The CLI remains
-available independently and requires no Tauri dependencies.
+It adds server/scope browsing, search and details. GUI 0.10.0 uses isolated
+native workers for reservation creation and metadata editing as well, preserving
+existing DHCP, BOOTP or DHCP/BOOTP reservation types on edits. The earlier
+PowerShell write bridge has been removed. RSAT remains a first-release deployment
+prerequisite; running without RSAT is a later validation milestone. See the GUI
+README for checks, confirmation, partial-write handling and limitations.
+The CLI remains available independently and requires no Tauri dependencies.
 
 ## Build and run
 

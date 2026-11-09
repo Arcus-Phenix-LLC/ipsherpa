@@ -8,6 +8,57 @@ ranges, and state. Select a scope to browse Overview, Leases, Reservations and
 Options. Browsing remains read-only; **New reservation** is the explicit write
 workflow added in 0.8.0 and requires RSAT DHCP tools.
 
+## Current backend and prerequisites (0.10.0)
+
+All browsing and reservation writes now call Windows DHCP APIs from Rust.
+The application does not launch PowerShell or import the DhcpServer module.
+RSAT remains a first-release deployment prerequisite; RSAT-free deployment has
+not been validated. Existing Windows identity, permissions, RPC connectivity,
+Dhcpsapi.dll and WebView2 requirements remain.
+
+Creation still produces DHCP-only reservations. Editing now accepts DHCP,
+BOOTP and DHCP/BOOTP reservations with supported six-byte unicast MACs and
+preserves the existing reservation type. Extended client identifiers remain
+outside this workflow. A recognized internal DHCP UID (scope DWORD + hardware
+type + six-byte MAC) is validated against the selected scope before comparison;
+arbitrary client-ID tails are never treated as MACs.
+
+Review, confirmation, two-minute/single-use tokens, stale-data protection and
+read-back verification are unchanged. The UI shows the preserved type in the
+edit review. Allocation, exclusion and lease checks still apply conservatively
+on the selected server/scope. No failover replication or static-device discovery
+is performed. Checks and writes are not an atomic server transaction.
+
+Writes run in a hidden one-shot child of ipsherpa-gui.exe. Request data travels
+as bounded JSON on stdin; child output is an owned JSON result. Native buffers
+have process lifetime, without nested RPC frees. The GUI parent never performs
+native write calls. Child crashes cannot be treated as successful writes.
+
+Creation calls DhcpAddSubnetElementV4, reads the associated client through
+DhcpGetClientInfoV4 and uses DhcpSetClientInfoV4 for name/description. Editing
+reads the existing client and changes only its text pointers in a copied native
+structure, preserving address, mask, UID, expiry, owner and client type. It does
+not remove/recreate the reservation or call option setters. A fresh reservation
+read verifies identity, allowed type and metadata; edit verification also checks
+option-presence stability. Actual reservation option values are not independently
+compared. The native client and reservation type fields are distinct.
+
+Creation is multi-step: if the reservation is added but a later step fails, it
+may remain with incomplete metadata. Any error after dispatching a write, failed
+readback or worker failure has an uncertain outcome. Inspect DHCP Manager before
+trying again. No automatic retry, cleanup or rollback occurs.
+
+Native workflow mocks cover no-write previews, conflicts, stale data, type
+preservation, partial failures, verification and UID matching. ABI fixtures cover
+SDK layouts, owned input buffers and preserving client fields. Browser tests
+cover DHCP/BOOTP editing, confirmation and existing navigation. Lab acceptance
+must revalidate creation and edits on the native backend; previous PowerShell
+acceptance does not establish native-write parity. No live writes are performed
+by automated tests. Runtime logs and real server data are excluded from commits.
+
+The version-specific sections below retain the experiment's history; their
+PowerShell write backend and DHCP-only edit restriction no longer apply.
+
 ## Read-only record browsing (0.2.0)
 
 - Leases show IP, hostname, the complete client ID, server-reported state,
@@ -313,7 +364,7 @@ Browser regression checks cover view switching, record-cache reuse, filters,
 pagination, source context, search return, keyboard navigation, loading/errors,
 and narrow layout. All fixtures are synthetic; no runtime logs are committed.
 
-## Reviewed reservation creation (0.8.0)
+## Reviewed reservation creation (0.8.0; original backend, superseded in 0.10.0)
 
 Select a scope, choose **New reservation**, and enter an IPv4 address, six-byte
 unicast MAC, name and optional description. **Check & review** performs read-only
@@ -353,7 +404,7 @@ No live reservation writes are performed by automated checks. Use an authorized
 lab scope, create a disposable reservation, and compare it with DHCP Manager.
 Runtime logs and real server data must not be committed.
 
-## Reservation metadata editing (0.9.0)
+## Reservation metadata editing (0.9.0; type restriction superseded in 0.10.0)
 
 Open the Reservations tab and choose **Edit** on a supported row. Only name
 and description can change. IP, client ID, DHCP type and reservation options

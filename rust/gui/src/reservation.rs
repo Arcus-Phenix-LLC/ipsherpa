@@ -93,9 +93,12 @@ pub fn validate(mut r: Request) -> Result<Request, String> {
         return Err("Name is required; name and description must each be at most 255 characters without control characters.".into());
     }
     if let Some(original) = &r.original {
-        if original.client_type != "DHCP" {
+        if !matches!(
+            original.client_type.as_str(),
+            "DHCP" | "BOOTP" | "DHCP / BOOTP"
+        ) {
             return Err(
-                "Editing currently supports DHCP-only reservations with six-byte unicast MACs."
+                "Editing supports DHCP, BOOTP and DHCP/BOOTP reservations with six-byte unicast MACs."
                     .into(),
             );
         }
@@ -116,18 +119,8 @@ pub fn validate(mut r: Request) -> Result<Request, String> {
     Ok(r)
 }
 fn run(phase: &str, r: &Request) -> Result<Outcome, String> {
-    let executable = std::path::PathBuf::from(
-        std::env::var_os("SystemRoot").ok_or("Windows system directory unavailable.")?,
-    )
-    .join("System32/WindowsPowerShell/v1.0/powershell.exe");
-    let mut command = Command::new(executable);
-    command.args([
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        include_str!("reservation.ps1"),
-    ]);
+    let mut command = Command::new(std::env::current_exe().map_err(|e| e.to_string())?);
+    command.args(["--reservation-worker", phase]);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -138,7 +131,7 @@ fn run(phase: &str, r: &Request) -> Result<Outcome, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Unable to start Windows PowerShell: {e}"))?;
+        .map_err(|e| format!("Unable to start native reservation worker: {e}"))?;
     // User input is JSON data on stdin, never interpolated into executable code.
     let data = serde_json::to_vec(&serde_json::json!({"phase":phase,"request":r}))
         .map_err(|e| e.to_string())?;
@@ -150,13 +143,17 @@ fn run(phase: &str, r: &Request) -> Result<Outcome, String> {
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     written.map_err(|e| e.to_string())?;
     if !output.status.success() {
-        return Err(
-            "DHCP PowerShell worker failed. Verify RSAT DHCP tools and your permissions.".into(),
-        );
+        let code = output
+            .status
+            .code()
+            .map(|v| format!("0x{:08X}", v as u32))
+            .unwrap_or_else(|| output.status.to_string());
+        return Err(format!(
+            "Native DHCP worker exited {code}. Check server connectivity and permissions."
+        ));
     }
-    let result: Outcome = serde_json::from_slice(&output.stdout).map_err(|_| {
-        "Invalid DHCP PowerShell response. Verify RSAT DHCP tools are installed.".to_owned()
-    })?;
+    let result: Outcome = serde_json::from_slice(&output.stdout)
+        .map_err(|_| "Invalid native DHCP worker response.".to_owned())?;
     if !matches!(
         result.status.as_str(),
         "ready" | "blocked" | "created" | "updated" | "unknown"
@@ -276,7 +273,11 @@ mod tests {
         assert!(validate(r.clone()).is_err());
         r.name = "Updated".into();
         assert!(validate(r.clone()).is_ok());
-        r.original.as_mut().unwrap().client_type = "DHCP / BOOTP".into();
+        for kind in ["BOOTP", "DHCP / BOOTP"] {
+            r.original.as_mut().unwrap().client_type = kind.into();
+            assert!(validate(r.clone()).is_ok());
+        }
+        r.original.as_mut().unwrap().client_type = "Unknown (99)".into();
         assert!(validate(r).is_err());
     }
     #[test]

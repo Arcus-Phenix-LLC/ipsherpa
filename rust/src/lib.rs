@@ -5,7 +5,9 @@ mod details;
 pub use capacity::{scope_capacity_for_worker, CapacitySnapshot, PoolTotals, ScopeStatistics};
 mod records;
 pub use details::{list_scope_details_for_worker, AddressRange, ScopeDetails};
-pub use records::{list_records_for_worker, validate_scope_id, ClientRecord};
+pub use records::{
+    list_records_for_worker, records_in_write_worker, validate_scope_id, ClientRecord,
+};
 
 fn scope_address(value: u32) -> Ipv4Addr {
     // DHCP_IP_ADDRESS is a host-order DWORD, not a network-order byte buffer.
@@ -141,6 +143,26 @@ pub fn list_scopes(server: &str) -> Result<Vec<Ipv4Addr>, String> {
     {
         let _ = server;
         Err("Native DHCP enumeration requires Windows.".into())
+    }
+}
+
+/// Read allocation or exclusion ranges inside an isolated native write worker.
+#[doc(hidden)]
+pub fn ranges_in_write_worker(
+    server: &str,
+    scope: &str,
+    excluded: bool,
+) -> Result<Vec<AddressRange>, String> {
+    let server = validate_server(server)?;
+    let id = validate_scope_id(scope)?;
+    #[cfg(windows)]
+    {
+        details::read_ranges_in_worker(server, id, excluded)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (server, id, excluded);
+        Err("Windows is required.".into())
     }
 }
 
