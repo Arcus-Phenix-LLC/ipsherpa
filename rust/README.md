@@ -1,6 +1,6 @@
-# IPSherpa Rust experiment
+# IPSherpa Rust implementation
 
-Rust transition experiment on `rust-transition`. The CLI lists IPv4 scope IDs
+Native Windows DHCP implementation. The CLI lists IPv4 scope IDs
 using `DhcpEnumSubnets` directly and remains read-only without PowerShell.
 Uses the current Windows process identity, with no stored credentials.
 
@@ -60,5 +60,7 @@ The CLI lists scope IDs. The GUI additionally reads names, configured ranges,
 and state through `list_scope_details_for_worker`. It also browses leases and
 reservations via `list_records_for_worker`. These APIs are single-use within
 short-lived workers; native buffers are reclaimed by Windows at worker exit.
-The scope-detail baseline was confirmed on an RSAT-equipped machine. New record
-reads need a separate lab comparison. DHCP writes remain future work.
+Browsing, navigation, native creation and DHCP/BOOTP metadata editing were
+confirmed on the maintainer's RSAT-equipped lab machine. Validate server and
+workstation compatibility in your own environment; see the GUI guide for write
+checks, confirmation and uncertain-outcome handling.

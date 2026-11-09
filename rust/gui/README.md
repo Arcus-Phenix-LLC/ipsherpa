@@ -1,4 +1,4 @@
-# IPSherpa desktop preview
+# IPSherpa desktop guide
 
 A Windows Tauri 2 GUI for DHCP browsing and reviewed reservation changes.
 Enter `DHCP01` (or your server hostname/IP), select **Connect**, and use **Refresh**
