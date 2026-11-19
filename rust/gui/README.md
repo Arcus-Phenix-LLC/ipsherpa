@@ -8,6 +8,43 @@ ranges, and state. Select a scope to browse Overview, Leases, Reservations and
 Options. Browsing remains read-only; **New reservation** is the explicit write
 workflow added in 0.8.0 and requires RSAT DHCP tools.
 
+## Add a selected lease to reservations (0.11.0 lab candidate)
+
+On the Leases tab, right-click a lease and choose **Add to reservation**, or use
+its Actions button. Keyboard users can focus the row action and press Shift+F10.
+The dialog copies the IP, full server-returned lease client ID, name and
+description. IP and identity stay read-only; name and description can be adjusted.
+Choose **Check & review**, verify the source and effective DHCP client ID, check
+confirmation and choose **Create reservation**. Opening the dialog never writes.
+
+Only active, unreserved DHCP-capable leases are eligible. Already-reserved,
+offered, declined, deleted, missing or ambiguous leases are not converted. The
+backend re-reads the exact selected lease before issuing a review and again
+before writing, comparing its complete identity with the selected row. A changed
+or reassigned lease requires refreshing and selecting it again. The reservation
+remains at the current IP; no lease is removed or moved by the workflow.
+
+This source-bound path accepts the actual lease's identifier (up to 255 bytes),
+including hardware-type-prefixed IDs that are not simply a six-byte MAC. A valid
+internal scope/hardware wrapper is decoded using the selected scope; identifier
+bytes are otherwise preserved. The review token binds that identity as well as
+the address and proposed metadata. The existing native add and metadata/readback
+operations use the resolved client ID, preserving native client fields.
+
+Manual **New reservation** remains a six-byte-unicast-MAC workflow. If its MAC
+does not match an existing lease's actual client ID, the error now says so and
+points to the lease-row shortcut. Inactive-state errors are separate and include
+the reported state. Existing metadata editing has not been expanded to arbitrary
+extended identifiers. New reservations, including conversions, are DHCP-only;
+BOOTP-only leases are not eligible for this shortcut. Existing range/exclusion,
+conflict, stale-data, confirmation and uncertain-outcome safeguards still apply.
+
+Tests use synthetic fixtures only: raw MACs, prefixed/opaque client IDs, internal
+UID wrappers, stale identity, inactive/reserved/missing leases, native add input,
+metadata field preservation, right-click/keyboard menus and browser regressions.
+Live server validation remains pending for this candidate. Runtime logs and real
+server/client information are not included in the source or package.
+
 ## Current backend and prerequisites (0.10.0)
 
 All browsing and reservation writes now call Windows DHCP APIs from Rust.

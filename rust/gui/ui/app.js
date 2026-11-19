@@ -92,7 +92,7 @@ function setBusy(value) {
   refreshButton.disabled = value || connectedServer === null;
   document.querySelectorAll(".scope-select").forEach(button => { button.disabled = value; });
   tabButtons.forEach(button => { button.disabled = value; });
-  document.querySelectorAll(".reservation-edit-row").forEach(button => { button.disabled = value || button.dataset.unsupported === "true"; });
+  document.querySelectorAll(".reservation-edit-row, .lease-reserve-row").forEach(button => { button.disabled = value || button.dataset.unsupported === "true"; });
   recordRefresh.disabled = value || selectedScope === null;
   updateFilterControls();
   updatePaging();
@@ -143,6 +143,17 @@ function reservationMac(value) {
   return hex.match(/../g).join("-");
 }
 
+function leaseReservationProblem(record) {
+  if (record.isReservation) return "Already reserved. Refresh the Reservations tab to inspect it.";
+  if (!["DHCP", "DHCP / BOOTP"].includes(record.clientType)) return "This shortcut creates a DHCP-only reservation and requires a DHCP-capable lease.";
+  const state=record.state || "Unknown";
+  if (state.split(" · ")[0] !== "Active" || state.includes("Deleted")) return `Lease is not active (${state}).`;
+  if (!/^[0-9a-f:.-]+$/i.test(record.clientId || "")) return "Lease has no supported client ID.";
+  const hex=record.clientId.replace(/[-:.]/g, "");
+  if (!hex.length || hex.length % 2 || hex.length > 520 || /^0+$/.test(hex)) return "Lease has no supported client ID.";
+  return "";
+}
+
 function renderRecordsPage() {
   const filtered = filteredRecords();
   const fragment = document.createDocumentFragment();
@@ -166,6 +177,19 @@ function renderRecordsPage() {
       button.title = supported ? "Edit name and description" : "Editing supports DHCP, BOOTP and DHCP/BOOTP with six-byte unicast MACs.";
       button.addEventListener("click", () => window.ReservationUI?.open(record)); cell.append(button); row.append(cell);
     }
+    if (activeTab === "leases") {
+      const cell=document.createElement("td"), button=document.createElement("button");
+      const problem=leaseReservationProblem(record);
+      button.type="button";button.className="secondary lease-reserve-row";
+      button.textContent=record.isReservation?"Reserved":"Add to reservation";
+      button.dataset.unsupported=String(Boolean(problem));button.disabled=busy||Boolean(problem);
+      button.setAttribute("aria-label",`Add to reservation for lease ${record.ipAddress}`);
+      button.title=problem||"Reserve this lease's current address and DHCP client ID";
+      button.addEventListener("click",()=>window.ReservationUI?.fromLease(record));
+      cell.append(button);row.append(cell);
+      row.addEventListener("contextmenu",event=>window.ReservationUI?.contextMenu(event,record,row));
+      row.addEventListener("keydown",event=>{if(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10"))window.ReservationUI?.contextMenu(event,record,row);});
+    }
     fragment.append(row);
   }
   recordBody.replaceChildren(fragment);
@@ -186,7 +210,7 @@ async function queryRecords(refresh = false) {
   document.querySelector("#records-results").setAttribute("aria-labelledby", `tab-${kind}`);
   document.querySelector("#records-caption").textContent = `${kind} for scope ${scopeId} on ${server}`;
   document.querySelector("#lease-time-hint").hidden = kind !== "leases";
-  const headings = kind === "leases" ? ["IP address", "Hostname", "Client ID", "State", "Lease expires", "Description"]
+  const headings = kind === "leases" ? ["IP address", "Hostname", "Client ID", "State", "Lease expires", "Description", "Actions"]
     : ["IP address", "Name", "Client ID", "Client type", "Options", "Description", "Actions"];
   document.querySelector("#records-columns").replaceChildren(...headings.map(label => {
     const th = document.createElement("th"); th.scope = "col"; th.textContent = label; return th;

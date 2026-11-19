@@ -21,40 +21,33 @@ fn kind(r: &Request) -> &str {
         .map_or("DHCP", |o| o.client_type.as_str())
 }
 fn bytes(text: &str) -> Option<Vec<u8>> {
-    if !text
-        .chars()
-        .all(|c| c.is_ascii_hexdigit() || "-:.".contains(c))
-    {
-        return None;
+    crate::reservation::id_bytes(text)
+}
+fn identifier(r: &Request) -> Option<Vec<u8>> {
+    match &r.source_lease {
+        Some(source) => crate::reservation::lease_identifier(&source.client_id, &r.scope_id),
+        None => bytes(&r.mac),
     }
-    let s: String = text.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    if !s.len().is_multiple_of(2) {
-        return None;
-    }
-    (0..s.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
-        .collect()
 }
 fn same_client(value: &str, r: &Request) -> bool {
-    let Some(mut uid) = bytes(value) else {
+    let Some(uid) = bytes(value) else {
         return false;
     };
-    let Some(mac) = bytes(&r.mac) else {
+    let Some(expected) = identifier(r) else {
         return false;
     };
-    // MS-DHCPM 2.2.1.2.5.2: subnet DWORD little-endian + hardware type 1 + ID.
-    // Never infer a MAC by blindly taking the tail of an arbitrary client ID.
-    if uid.len() == 11 {
-        let Ok(scope) = r.scope_id.parse::<Ipv4Addr>() else {
-            return false;
-        };
-        if uid[..4] != u32::from(scope).to_le_bytes() || uid[4] != 1 {
-            return false;
-        }
-        uid = uid[5..].to_vec();
+    if uid == expected {
+        return true;
     }
-    uid == mac
+    // Reservation enumeration returns the client identifier, while legacy API
+    // results may wrap a six-byte MAC. Extended lease IDs are matched exactly.
+    r.source_lease.is_none()
+        && expected.len() == 6
+        && uid.len() == 11
+        && crate::reservation::lease_identifier(value, &r.scope_id) == Some(expected)
+}
+fn same_lease_client(value: &str, r: &Request) -> bool {
+    crate::reservation::lease_identifier(value, &r.scope_id) == identifier(r)
 }
 fn ip(r: &Request) -> Ipv4Addr {
     r.ip_address.parse().expect("validated request")
@@ -110,17 +103,46 @@ fn check(s: &Snapshot, r: &Request) -> Result<(), String> {
             return Err("This MAC already has a reservation in this scope.".into());
         }
     }
+    if let Some(source) = &r.source_lease {
+        let matches: Vec<_> = s.leases.iter().filter(|v| v.address == ip(r)).collect();
+        if matches.len() != 1 {
+            return Err(
+                "The selected lease is missing or ambiguous. Refresh leases and select it again."
+                    .into(),
+            );
+        }
+        let lease = matches[0];
+        if !matches!(lease.client_type.as_str(), "DHCP" | "DHCP / BOOTP") {
+            return Err(
+                "This shortcut creates a DHCP-only reservation and requires a DHCP-capable lease."
+                    .into(),
+            );
+        }
+        if bytes(&lease.client_id) != bytes(&source.client_id) {
+            return Err(
+                "The selected lease client ID changed. Refresh leases and select it again.".into(),
+            );
+        }
+        if lease.is_reservation {
+            return Err("This lease is already marked as reserved. Refresh reservations.".into());
+        }
+    }
     for lease in &s.leases {
-        let same = same_client(&lease.client_id, r);
-        if lease.address == ip(r)
-            && (!same
-                || lease.state.as_deref().and_then(|v| v.split(" · ").next()) != Some("Active"))
-        {
-            return Err("The address has a conflicting or non-active lease record.".into());
+        let same = same_lease_client(&lease.client_id, r);
+        if lease.address == ip(r) {
+            let state = lease.state.as_deref().unwrap_or("Unknown");
+            if state.split(" · ").next() != Some("Active") || state.contains("Deleted") {
+                return Err(format!(
+                    "The lease is not active (state: {state}). Refresh leases before reserving it."
+                ));
+            }
+            if !same {
+                return Err("The lease client ID does not match the entered MAC. Use Add to reservation on the lease row to preserve its actual DHCP client ID.".into());
+            }
         }
         if same && lease.address != ip(r) {
             return Err(
-                "This MAC has a lease at another address; automatic moves are not supported."
+                "This client ID has a lease at another address; automatic moves are not supported."
                     .into(),
             );
         }
@@ -338,7 +360,7 @@ mod native {
                         .parse::<Ipv4Addr>()
                         .map_err(|_| "Invalid scope")?,
                 )
-            || !same_client(&unsafe { client_id(c) }?, r)
+            || !same_lease_client(&unsafe { client_id(c) }?, r)
         {
             return Err("Native client identity does not match the reviewed reservation.".into());
         }
@@ -358,7 +380,7 @@ mod native {
         r: &Request,
         call: impl FnOnce(&Element) -> Result<(), String>,
     ) -> Result<(), String> {
-        let mut mac = bytes(&r.mac).ok_or("Invalid MAC")?;
+        let mut mac = identifier(r).ok_or("Invalid reservation client ID")?;
         let uid = Binary {
             length: mac.len() as u32,
             data: mac.as_mut_ptr(),
@@ -484,6 +506,66 @@ mod native {
             .unwrap();
         }
         #[test]
+        fn native_add_preserves_extended_identifier_from_selected_lease() {
+            let mut r = super::super::tests::request();
+            r.mac = "01-02-AA-BB-CC-DD-EE".into();
+            r.source_lease = Some(crate::reservation::SourceLease {
+                client_id: r.mac.clone(),
+            });
+            add_element(&r, |element| {
+                let reserved = unsafe { &*element.reserved };
+                let uid = unsafe { &*reserved.uid };
+                assert_eq!(uid.length, 7);
+                assert_eq!(
+                    unsafe { std::slice::from_raw_parts(uid.data, 7) },
+                    [1, 2, 170, 187, 204, 221, 238]
+                );
+                Ok(())
+            })
+            .unwrap();
+        }
+        #[test]
+        fn lease_conversion_metadata_preserves_wrapped_full_identifier() {
+            let mut r = super::super::tests::request();
+            let raw = "00-02-00-C0-01-01-02-AA-BB-CC-DD-EE";
+            r.mac = raw.into();
+            r.source_lease = Some(crate::reservation::SourceLease {
+                client_id: raw.into(),
+            });
+            let r = crate::reservation::validate(r).unwrap();
+            let mut uid = bytes(raw).unwrap();
+            let mut name = wide("Before");
+            let mut desc = wide("Previous");
+            let c = Client {
+                address: u32::from(ip(&r)),
+                mask: 0xffffff00,
+                uid: Binary {
+                    length: uid.len() as u32,
+                    data: uid.as_mut_ptr(),
+                },
+                name: name.as_mut_ptr(),
+                comment: desc.as_mut_ptr(),
+                expires: DateTime {
+                    low: 123,
+                    high: 456,
+                },
+                owner: Host {
+                    address: 44,
+                    netbios: ptr::null_mut(),
+                    name: ptr::null_mut(),
+                },
+                kind: 1,
+            };
+            let mut new_name = wide(&r.name);
+            let mut new_desc = wide(&r.description);
+            let changed =
+                metadata_copy(&c, &r, new_name.as_mut_ptr(), new_desc.as_mut_ptr()).unwrap();
+            assert_eq!(changed.uid.data, c.uid.data);
+            assert_eq!(changed.uid.length, 12);
+            assert_eq!(changed.expires, c.expires);
+            assert_eq!(changed.kind, c.kind);
+        }
+        #[test]
         fn changes_only_metadata_and_preserves_native_storage() {
             let r = super::super::tests::request();
             let mut uid = bytes(&r.mac).unwrap();
@@ -536,6 +618,7 @@ mod tests {
             name: "After 東京".into(),
             description: "New".into(),
             original: None,
+            source_lease: None,
         }
     }
     fn row() -> ClientRecord {
@@ -589,7 +672,7 @@ mod tests {
             row.client_type = "DHCP".into();
             row.name = String::new();
             row.description = String::new();
-            row.client_id = r.mac.clone();
+            row.client_id = crate::reservation::format_id(&identifier(r).unwrap());
             self.data.reservations.push(row);
             Ok(())
         }
@@ -615,6 +698,114 @@ mod tests {
             fail: None,
             mismatch: false,
         }
+    }
+    #[test]
+    fn converts_active_lease_with_exact_raw_or_wrapped_client_id() {
+        for id in [
+            "02-AA-BB-CC-DD-EE",
+            "01-02-AA-BB-CC-DD-EE",
+            "00-02-00-C0-01-02-AA-BB-CC-DD-EE",
+            "00-02-00-C0-01-01-02-AA-BB-CC-DD-EE",
+            "68-6F-73-74-2D-69-64",
+        ] {
+            let mut r = request();
+            r.mac = id.into();
+            r.source_lease = Some(crate::reservation::SourceLease {
+                client_id: id.into(),
+            });
+            let r = crate::reservation::validate(r).unwrap();
+            let mut b = mock();
+            let mut lease = row();
+            lease.client_id = id.into();
+            lease.state = Some("Active".into());
+            lease.is_reservation = false;
+            b.data.leases.push(lease);
+            assert_eq!(execute(&mut b, "preview", &r).status, "ready", "{id}");
+            assert_eq!(b.events, ["read"]);
+            b.events.clear();
+            assert_eq!(execute(&mut b, "create", &r).status, "created", "{id}");
+            assert_eq!(b.events, ["read", "add", "metadata", "read"]);
+            assert_eq!(
+                b.data.reservations[0].client_id,
+                crate::reservation::format_id(&identifier(&r).unwrap())
+            );
+        }
+    }
+    #[test]
+    fn conversion_blocks_missing_stale_reserved_and_nonactive_leases_without_writing() {
+        for mode in [
+            "missing",
+            "stale",
+            "reserved",
+            "declined",
+            "offered",
+            "deleted",
+            "ambiguous",
+        ] {
+            let mut r = request();
+            r.source_lease = Some(crate::reservation::SourceLease {
+                client_id: r.mac.clone(),
+            });
+            let mut b = mock();
+            if mode != "missing" {
+                let mut lease = row();
+                lease.state = Some(
+                    match mode {
+                        "declined" => "Declined",
+                        "offered" => "Offered",
+                        "deleted" => "Active · Deleted",
+                        _ => "Active",
+                    }
+                    .into(),
+                );
+                lease.is_reservation = mode == "reserved";
+                if mode == "stale" {
+                    lease.client_id = "02-00-00-00-00-01".into();
+                }
+                if mode == "ambiguous" {
+                    b.data.leases.push(lease.clone());
+                }
+                b.data.leases.push(lease);
+            }
+            let outcome = execute(&mut b, "create", &r);
+            assert_eq!(outcome.status, "blocked", "{mode}");
+            assert_eq!(b.events, ["read"]);
+        }
+    }
+    #[test]
+    fn conversion_rechecks_identity_between_review_and_create() {
+        let mut r = request();
+        r.source_lease = Some(crate::reservation::SourceLease {
+            client_id: r.mac.clone(),
+        });
+        let mut b = mock();
+        let mut lease = row();
+        lease.is_reservation = false;
+        lease.state = Some("Active".into());
+        b.data.leases.push(lease);
+        assert_eq!(execute(&mut b, "preview", &r).status, "ready");
+        b.data.leases[0].client_id = "02-00-00-00-00-01".into();
+        let result = execute(&mut b, "create", &r);
+        assert_eq!(result.status, "blocked");
+        assert!(result.message.contains("client ID changed"));
+        assert_eq!(b.events, ["read", "read"]);
+    }
+    #[test]
+    fn manual_creation_reports_identity_mismatch_separately_from_state() {
+        let r = request();
+        let mut b = mock();
+        let mut lease = row();
+        lease.client_id = "01-02-AA-BB-CC-DD-EE".into();
+        lease.state = Some("Active".into());
+        lease.is_reservation = false;
+        b.data.leases.push(lease);
+        let result = execute(&mut b, "preview", &r);
+        assert_eq!(result.status, "blocked");
+        assert!(result.message.contains("client ID does not match"));
+        b.data.leases[0].state = Some("Declined".into());
+        assert!(execute(&mut b, "preview", &r)
+            .message
+            .contains("not active"));
     }
     #[test]
     fn preview_never_writes_and_create_verifies() {

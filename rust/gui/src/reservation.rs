@@ -20,6 +20,52 @@ pub struct Request {
     pub description: String,
     #[serde(default)]
     pub original: Option<Original>,
+    #[serde(default)]
+    pub source_lease: Option<SourceLease>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceLease {
+    pub client_id: String,
+}
+
+pub(super) fn id_bytes(text: &str) -> Option<Vec<u8>> {
+    if text.len() > 1024
+        || !text
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || "-:.".contains(c))
+    {
+        return None;
+    }
+    let hex: String = text.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    if hex.is_empty() || !hex.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
+        .collect()
+}
+pub(super) fn format_id(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|b| format!("{b:02X}"))
+        .collect::<Vec<_>>()
+        .join("-")
+}
+/// Enumeration may include the documented subnet DWORD + hardware-type wrapper.
+/// Only a wrapper matching this scope is removed; never truncate an arbitrary ID.
+pub(super) fn lease_identifier(text: &str, scope: &str) -> Option<Vec<u8>> {
+    let mut bytes = id_bytes(text)?;
+    let scope = scope.parse::<Ipv4Addr>().ok()?;
+    if bytes.len() > 5 && bytes[..4] == u32::from(scope).to_le_bytes() && bytes[4] == 1 {
+        bytes = bytes[5..].to_vec();
+    }
+    if bytes.is_empty() || bytes.len() > 255 || bytes.iter().all(|b| *b == 0) {
+        None
+    } else {
+        Some(bytes)
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -58,28 +104,43 @@ pub fn validate(mut r: Request) -> Result<Request, String> {
         return Err("Enter a usable unicast IPv4 address.".into());
     }
     r.ip_address = ip.to_string();
-    let text = r.mac.trim();
-    if !text
-        .chars()
-        .all(|c| c.is_ascii_hexdigit() || "-:.".contains(c))
-    {
-        return Err("Enter a six-byte MAC address.".into());
+    if let Some(source) = &mut r.source_lease {
+        if r.original.is_some() {
+            return Err("A lease conversion cannot also edit an existing reservation.".into());
+        }
+        let raw = id_bytes(&source.client_id).ok_or("Invalid source lease client ID.")?;
+        let effective = lease_identifier(&source.client_id, &r.scope_id)
+            .ok_or("Unsupported source lease client ID.")?;
+        let supplied = id_bytes(&r.mac).ok_or("Invalid lease client ID.")?;
+        if supplied != raw && supplied != effective {
+            return Err("The client ID must stay bound to the selected lease.".into());
+        }
+        source.client_id = format_id(&raw);
+        r.mac = format_id(&effective);
+    } else {
+        let text = r.mac.trim();
+        if !text
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || "-:.".contains(c))
+        {
+            return Err("Enter a six-byte MAC address.".into());
+        }
+        let hex: String = text.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        if hex.len() != 12 {
+            return Err("Enter exactly six bytes for the MAC address. Extended DHCP client IDs are not supported in this workflow.".into());
+        }
+        let bytes: Vec<u8> = (0..6)
+            .map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap())
+            .collect();
+        if bytes[0] & 1 != 0 || bytes.iter().all(|b| *b == 0) {
+            return Err("MAC must be a nonzero unicast address.".into());
+        }
+        r.mac = bytes
+            .iter()
+            .map(|b| format!("{b:02X}"))
+            .collect::<Vec<_>>()
+            .join("-");
     }
-    let hex: String = text.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    if hex.len() != 12 {
-        return Err("Enter exactly six bytes for the MAC address. Extended DHCP client IDs are not supported in this workflow.".into());
-    }
-    let bytes: Vec<u8> = (0..6)
-        .map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap())
-        .collect();
-    if bytes[0] & 1 != 0 || bytes.iter().all(|b| *b == 0) {
-        return Err("MAC must be a nonzero unicast address.".into());
-    }
-    r.mac = bytes
-        .iter()
-        .map(|b| format!("{b:02X}"))
-        .collect::<Vec<_>>()
-        .join("-");
     r.name = r.name.trim().into();
     r.description = r.description.trim().into();
     if r.name.is_empty()
@@ -228,6 +289,7 @@ mod tests {
             name: "Example 東京".into(),
             description: "Synthetic".into(),
             original: None,
+            source_lease: None,
         }
     }
     #[test]
@@ -296,6 +358,38 @@ mod tests {
         });
         assert_eq!(reviews.take("edit").unwrap(), r);
         assert!(reviews.take("edit").is_err());
+    }
+    #[test]
+    fn lease_source_preserves_identifier_and_revalidates_normalized_request() {
+        let mut r = request();
+        r.source_lease = Some(SourceLease {
+            client_id: "00-02-00-C0-01-01-02-AA-BB-CC-DD-EE".into(),
+        });
+        r.mac = r.source_lease.as_ref().unwrap().client_id.clone();
+        let checked = validate(r).unwrap();
+        assert_eq!(checked.mac, "01-02-AA-BB-CC-DD-EE");
+        assert_eq!(validate(checked.clone()).unwrap(), checked);
+        let mut tampered = checked.clone();
+        tampered.mac = "02-AA-BB-CC-DD-EE".into();
+        assert!(validate(tampered).is_err());
+        let mut edit = checked;
+        edit.original = Some(Original {
+            name: "Before".into(),
+            description: "".into(),
+            client_type: "DHCP".into(),
+        });
+        assert!(validate(edit).is_err());
+    }
+    #[test]
+    fn lease_source_requires_bounded_nonempty_identifiers() {
+        for id in ["", "0", "00-00", "not-hex", &"AB".repeat(256)] {
+            let mut r = request();
+            r.mac = id.into();
+            r.source_lease = Some(SourceLease {
+                client_id: id.into(),
+            });
+            assert!(validate(r).is_err());
+        }
     }
     #[test]
     fn review_is_bound_expiring_and_single_use() {

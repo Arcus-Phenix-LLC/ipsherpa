@@ -40,7 +40,7 @@
         </div>
         <p id="profiles-message" class="hint">Save server names for reuse. Select a saved server, then Connect. No credentials are stored.</p>
       </section>
-      <p class="sidebar-foot">IPSherpa 0.10.0 · Reservations enabled</p>
+      <p class="sidebar-foot">IPSherpa 0.11.0 · Reservations enabled</p>
     </aside>
     <main id="workspace">
       <header class="workspace-header">
@@ -116,7 +116,7 @@
             <table class="records-table"><caption id="records-caption" class="sr-only"></caption><thead><tr id="records-columns"></tr></thead><tbody id="records-rows"></tbody></table>
           </div>
           <div id="records-pager" class="pager" hidden><button id="records-prev" type="button" class="secondary">Previous</button><span id="records-page-status" role="status"></span><button id="records-next" type="button" class="secondary">Next</button></div>
-          <p id="lease-time-hint" class="hint record-hint">Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
+          <p id="lease-time-hint" class="hint record-hint">Right-click an active, unreserved lease or use its Add to reservation action. Lease expiry times use your computer’s local time. Client IDs are shown in full and may differ from a MAC address.</p>
         </div>
       </section><p id="no-scope" class="empty">Choose a scope from Server overview.</p></section>
         <section id="screen-search" aria-label="Search across servers" hidden>      <section id="cross-panel" class="card cross-panel">
@@ -144,13 +144,14 @@
       </div>
     </main>
   </div>
+  <div id="lease-menu" class="lease-menu" role="menu" aria-label="Lease actions" tabindex="-1" hidden><button id="lease-menu-reserve" type="button" role="menuitem">Add to reservation</button><p id="lease-menu-note" class="hint" hidden></p></div>
   <dialog id="reservation-dialog" aria-labelledby="reservation-title">
     <form id="reservation-form">
       <h2 id="reservation-title">New DHCP reservation</h2><p id="reservation-source" class="hint"></p>
       <p id="reservation-help" class="hint">Checks apply to the selected scope on this server. They do not detect static devices, other servers or failover replication. No existing leases, reservations or exclusions will be changed.</p>
       <fieldset id="reservation-fields">
         <label for="reservation-ip">IPv4 address</label><input id="reservation-ip" required autocomplete="off" placeholder="192.0.2.25">
-        <label for="reservation-mac">MAC address (six bytes)</label><input id="reservation-mac" required autocomplete="off" placeholder="02-AA-BB-CC-DD-EE">
+        <label id="reservation-identity-label" for="reservation-mac">MAC address (six bytes)</label><input id="reservation-mac" required autocomplete="off" placeholder="02-AA-BB-CC-DD-EE">
         <label for="reservation-name">Name</label><input id="reservation-name" required maxlength="255" autocomplete="off">
         <label for="reservation-description">Description (optional)</label><input id="reservation-description" maxlength="255" autocomplete="off">
       </fieldset>

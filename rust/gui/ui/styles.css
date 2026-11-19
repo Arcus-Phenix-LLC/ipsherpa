@@ -189,3 +189,9 @@ html, body { height: 100%; overflow: hidden; }
 #reservation-status { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 #reservation-review label { font-size: 13px; line-height: 1.6; }
 #reservation-confirm { flex: none; }
+.lease-menu { position: fixed; z-index: 30; width: 250px; padding: 6px; border: 1px solid #bacdc7; border-radius: 8px; background: white; box-shadow: 0 6px 24px #17323730; }
+.lease-menu button { width: 100%; text-align: left; padding: 10px 12px; border: 0; background: white; color: #175a50; }
+.lease-menu button:hover:enabled { background: #edf3ef; }
+#lease-menu-note { padding: 4px 10px 10px; }
+.lease-reserve-row { white-space: nowrap; }
+#reservation-mac[readonly], #reservation-ip[readonly] { background: #edf3ef; }
